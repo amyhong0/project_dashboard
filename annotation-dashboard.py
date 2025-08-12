@@ -18,21 +18,24 @@ st.markdown("""
     text-align: center;
     margin-bottom: 1rem;
 }
-.metric-card {
-    background: white;
-    padding: 1rem;
-    border-radius: 0.5rem;
+.project-metric {
     text-align: center;
     margin: 0.5rem;
-    box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
-    color: #333;
 }
-.red-text {
-    color: red;
+.project-metric h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #555;
+}
+.project-metric p {
+    margin: 0;
+    font-size: 2rem;
     font-weight: bold;
+    color: #222;
 }
 </style>
 """, unsafe_allow_html=True)
+
 st.markdown('<div class="main-header"><h1>Project Dashboard</h1></div>', unsafe_allow_html=True)
 
 # SIDEBAR INPUTS
