@@ -10,6 +10,10 @@ st.set_page_config(page_title="Project Dashboard", layout="wide")
 # STYLES
 st.markdown("""
 <style>
+body {
+    background-color: #000 !important;
+    color: #fff !important;
+}
 .main-header {
     background: #0176d3;
     padding: 1rem;
@@ -18,6 +22,10 @@ st.markdown("""
     text-align: center;
     margin-bottom: 1rem;
 }
+.metric-card, .project-metric, table, th, td {
+    background: transparent !important;
+    color: #fff !important;
+}
 .project-metric {
     text-align: center;
     margin: 0.5rem;
@@ -25,13 +33,17 @@ st.markdown("""
 .project-metric h4 {
     margin: 0;
     font-size: 1rem;
-    color: #555;
+    color: #ccc;
 }
 .project-metric p {
     margin: 0;
-    font-size: 3rem;  /* 크게 표시 */
+    font-size: 3rem;
     font-weight: bold;
-    color: #222;
+    color: #fff;
+}
+.stDataFrame th {
+    background-color: #333 !important;
+    color: #fff !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -75,7 +87,7 @@ active_days = (target_end_date-open_date).days+1
 
 # PROJECT OVERVIEW
 completed_qty   = df["data_id"].nunique()
-remaining_qty   = total_data_qty - completed_qty
+remaining_qty   = total_data_qty-completed_qty
 progress_pct    = completed_qty/total_data_qty if total_data_qty>0 else 0
 remaining_days  = (target_end_date-date.today()).days
 elapsed_days    = (date.today()-open_date).days+1
@@ -110,6 +122,9 @@ for col, label, value, fmt in [
             <p>{fmt.format(value)}</p>
         </div>
     ''', unsafe_allow_html=True)
+    
+
+
 
 
 
