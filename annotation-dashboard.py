@@ -157,3 +157,92 @@ st.dataframe(cd[[
     "hourly_rate":"시급(원)","error_rate_pct":"오류율(%)","reviews":"검수수량",
     "hours":"참여시간(시간)","daily_avg":"일평균"
 }), use_container_width=True)
+
+
+
+# … (기존 코드 유지) …
+
+# ===== 주별 진척률 =====
+st.markdown("## 📊 주별 진척률")
+# 실제 작업량
+weekly_work = df.groupby(df["work_date"].dt.to_period("W")).agg(
+    work_actual=("annotations_completed", "sum")
+).reset_index()
+weekly_work["week_start"] = weekly_work["work_date"].dt.start_time.dt.date
+weekly_work["week_label"] = weekly_work["week_start"].apply(lambda d: f"{d.month}월 {((d.day-1)//7)+1}주차")
+# 예상 작업량 (주 단위 목표)
+weekly_work["work_target"] = daily_target * 7
+weekly_work["work_pct"] = weekly_work["work_actual"] / weekly_work["work_target"]
+
+# 실제 검수량
+weekly_review = df.groupby(df["work_date"].dt.to_period("W")).agg(
+    review_actual=("valid_count", "sum")
+).reset_index()
+weekly_review["week_start"] = weekly_review["work_date"].dt.start_time.dt.date
+weekly_review["week_label"] = weekly_review["week_start"].apply(lambda d: f"{d.month}월 {((d.day-1)//7)+1}주차")
+weekly_review["review_target"] = daily_target * 7 * 0.8
+weekly_review["review_pct"] = weekly_review["review_actual"] / weekly_review["review_target"]
+
+# 검수 대기건수
+# 작업 완료됐으나 review_date가 NaT인 건수
+wait = df[df["annotations_completed"]>0 & df["review_date"].isna()]
+weekly_wait = wait.groupby(wait["work_date"].dt.to_period("W")).agg(
+    review_wait=("data_id", "count")
+).reset_index()
+weekly_wait["week_start"] = weekly_wait["work_date"].dt.start_time.dt.date
+weekly_wait["week_label"] = weekly_wait["week_start"].apply(lambda d: f"{d.month}월 {((d.day-1)//7)+1}주차")
+
+# 병합
+weekly = pd.merge(weekly_work, weekly_review[["week_label","review_actual","review_target","review_pct"]], on="week_label")
+weekly = pd.merge(weekly, weekly_wait[["week_label","review_wait"]], on="week_label", how="left").fillna(0)
+
+fig = px.bar(
+    weekly,
+    x="week_label",
+    y=["work_actual","work_target","review_actual","review_target","review_wait"],
+    barmode="group",
+    title="주별 진척률: 작업 vs 검수"
+)
+fig.update_layout(xaxis_tickangle=-45)
+st.plotly_chart(fig, use_container_width=True)
+
+# ===== 작업자 현황 요약 =====
+st.markdown("## 📝 작업자 현황 요약")
+# 전체 작업자 기준
+total_summary = {
+    "활성률": f"{wd['activity_rate_pct'].mean():.1f}%",
+    "시급": f"{wd['hourly_rate'].mean():.0f}원",
+    "반려율": f"{wd['reject_rate_pct'].mean():.1f}%",
+    "작업수량": f"{wd['completed'].mean():.0f}"
+}
+# 활성 작업자 기준
+active = wd[~wd["abnormal"]]
+active_summary = {
+    "활성률": f"{active['activity_rate_pct'].mean():.1f}%",
+    "시급": f"{active['hourly_rate'].mean():.0f}원",
+    "반려율": f"{active['reject_rate_pct'].mean():.1f}%",
+    "작업수량": f"{active['completed'].mean():.0f}"
+}
+st.write("**전체 작업자 평균:**", total_summary)
+st.write("**활성 작업자 평균:**", active_summary)
+
+# ===== 검수자 현황 요약 =====
+st.markdown("## 📝 검수자 현황 요약")
+# 전체 검수자 기준
+total_summary_c = {
+    "활성률": f"{cd['activity_rate_pct'].mean():.1f}%",
+    "시급": f"{cd['hourly_rate'].mean():.0f}원",
+    "오류율": f"{cd['error_rate_pct'].mean():.1f}%",
+    "검수수량": f"{cd['reviews'].mean():.0f}"
+}
+# 활성 검수자 기준
+active_c = cd[~cd["abnormal"]]
+active_summary_c = {
+    "활성률": f"{active_c['activity_rate_pct'].mean():.1f}%",
+    "시급": f"{active_c['hourly_rate'].mean():.0f}원",
+    "오류율": f"{active_c['error_rate_pct'].mean():.1f}%",
+    "검수수량": f"{active_c['reviews'].mean():.0f}"
+}
+st.write("**전체 검수자 평균:**", total_summary_c)
+st.write("**활성 검수자 평균:**", active_summary_c)
+
