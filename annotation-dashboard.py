@@ -25,6 +25,7 @@ st.markdown("""
     text-align: center;
     margin: 0.5rem;
     box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
+    color: #333 !important;
 }
 .red-text {
     color: red;
@@ -44,13 +45,13 @@ if not uploaded:
 raw = pd.read_csv(uploaded, dtype=str)
 
 st.sidebar.header("⚙️ 프로젝트 파라미터")
-total_data_qty    = st.sidebar.number_input("데이터 총 수량", min_value=1, value=1000)
-open_date         = st.sidebar.date_input("오픈일", value=date.today())
-target_end_date   = st.sidebar.date_input("목표 종료일", value=date.today())
-daily_work_target = st.sidebar.number_input("1일 작업 목표", min_value=1, value=20)
-daily_review_target = st.sidebar.number_input("1일 검수 목표", min_value=1, value=16)
-unit_price        = st.sidebar.number_input("작업 단가(원)", min_value=0, value=100)
-review_price      = st.sidebar.number_input("검수 단가(원)", min_value=0, value=50)
+total_data_qty     = st.sidebar.number_input("데이터 총 수량", min_value=1, value=1000)
+open_date          = st.sidebar.date_input("오픈일", date.today())
+target_end_date    = st.sidebar.date_input("목표 종료일", date.today())
+daily_work_target  = st.sidebar.number_input("1일 작업 목표", min_value=1, value=20)
+daily_review_target= st.sidebar.number_input("1일 검수 목표", min_value=1, value=16)
+unit_price         = st.sidebar.number_input("작업 단가(원)", min_value=0, value=100)
+review_price       = st.sidebar.number_input("검수 단가(원)", min_value=0, value=50)
 
 # DATA CLEANING
 df = raw.rename(columns={
@@ -65,14 +66,14 @@ df = raw.rename(columns={
 ]]
 df["work_date"]   = pd.to_datetime(df["work_date"], errors="coerce")
 df["review_date"]= pd.to_datetime(df["review_date"], errors="coerce")
-for col in ["annotations_completed","valid_count","rework_required","work_time_minutes"]:
-    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+for c in ["annotations_completed","valid_count","rework_required","work_time_minutes"]:
+    df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
 df = df[(df["work_date"].dt.date>=open_date)&(df["work_date"].dt.date<=target_end_date)]
 active_days = (target_end_date-open_date).days+1
 
 # PROJECT OVERVIEW
 completed_qty   = df["data_id"].nunique()
-remaining_qty   = total_data_qty - completed_qty
+remaining_qty   = total_data_qty-completed_qty
 progress_pct    = completed_qty/total_data_qty
 remaining_days  = (target_end_date-date.today()).days
 elapsed_days    = (date.today()-open_date).days+1
@@ -87,7 +88,7 @@ c2.markdown(f'<div class="metric-card"><h4>완료 수량</h4><p>{completed_qty:,
 c3.markdown(f'<div class="metric-card"><h4>잔여 수량</h4><p>{remaining_qty:,}</p></div>', unsafe_allow_html=True)
 c4.markdown(f'<div class="metric-card"><h4>진행률</h4><p>{progress_pct:.1%}</p></div>', unsafe_allow_html=True)
 c5,c6,c7,c8 = st.columns(4)
-c5.markdown(f'<div class="metric-card"><h4>잔여일</h4><p>{remaining_days}</p></div>', unsafe_allow_html=True)
+c5.markdown(f'<div class="metric-card"><h4>잔여일</h4><p>{remaining_days:,}</p></div>', unsafe_allow_html=True)
 c6.markdown(f'<div class="metric-card"><h4>1일 작업 목표</h4><p>{daily_work_target:,}</p></div>', unsafe_allow_html=True)
 c7.markdown(f'<div class="metric-card"><h4>1일 검수 목표</h4><p>{daily_review_target:,}</p></div>', unsafe_allow_html=True)
 c8.markdown(f'<div class="metric-card"><h4>예상 완료율</h4><p>{predicted_pct:.1%}</p></div>', unsafe_allow_html=True)
@@ -97,9 +98,9 @@ dates = pd.date_range(open_date, target_end_date)
 daily_done = df.groupby(df["work_date"].dt.date)["data_id"].nunique().reindex(dates.date, fill_value=0).cumsum().reset_index()
 daily_done.columns = ["date","cumulative"]
 target_line = pd.DataFrame({"date":dates.date,"cumulative":np.linspace(0,total_data_qty,len(dates))})
-fig=px.line(daily_done, x="date", y="cumulative", title="프로젝트 진행 추이")
-fig.add_scatter(x=target_line["date"], y=target_line["cumulative"], mode="lines", name="목표선")
-st.plotly_chart(fig, use_container_width=True)
+fig=px.line(daily_done,x="date",y="cumulative",title="프로젝트 진행 추이")
+fig.add_scatter(x=target_line["date"],y=target_line["cumulative"],mode="lines",name="목표선")
+st.plotly_chart(fig,use_container_width=True)
 
 # WEEKLY PROGRESS
 df["month"]=df["work_date"].dt.month
@@ -117,13 +118,13 @@ weekly["review_wait"]=df[(df["annotations_completed"]>0)&df["review_date"].isna(
     .groupby("week_label")["data_id"].count().reindex(weekly["week_label"],fill_value=0).values
 
 st.markdown("## 📊 주별 진척률")
-fig1=px.bar(weekly, x="week_label", y=["work_actual","work_target"], barmode="group", title="주별 작업")
-fig1.update_xaxes(tickangle=-45); st.plotly_chart(fig1, use_container_width=True)
+fig1=px.bar(weekly,x="week_label",y=["work_actual","work_target"],barmode="group",title="주별 작업")
+fig1.update_xaxes(tickangle=-45); st.plotly_chart(fig1,use_container_width=True)
 st.table(weekly[["week_label","work_actual","work_target","work_pct"]]
          .assign(work_pct=lambda df: df["work_pct"].map("{:.1%}".format))
          .rename(columns={"week_label":"주차","work_actual":"실제","work_target":"목표","work_pct":"달성율"}))
-fig2=px.bar(weekly, x="week_label", y=["review_actual","review_target"], barmode="group", title="주별 검수")
-fig2.update_xaxes(tickangle=-45); st.plotly_chart(fig2, use_container_width=True)
+fig2=px.bar(weekly,x="week_label",y=["review_actual","review_target"],barmode="group",title="주별 검수")
+fig2.update_xaxes(tickangle=-45); st.plotly_chart(fig2,use_container_width=True)
 st.table(weekly[["week_label","review_actual","review_target","review_pct","review_wait"]]
          .assign(review_pct=lambda df: df["review_pct"].map("{:.1%}".format))
          .rename(columns={"week_label":"주차","review_actual":"실제","review_target":"목표",
