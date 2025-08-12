@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import numpy as np
-from datetime import datetime, date
+from datetime import date
 
 st.set_page_config(page_title="Project Dashboard", layout="wide")
 
@@ -43,21 +43,23 @@ STANDARD_COLUMNS = {
 
 def load_and_clean(raw: pd.DataFrame) -> pd.DataFrame:
     df = raw.rename(columns=STANDARD_COLUMNS)[list(STANDARD_COLUMNS.values())].copy()
-    # 날짜/숫자 변환
-    for col in ["date", "review_date"]:
-        df[col] = pd.to_datetime(df[col], errors="coerce")
+    # 날짜 변환
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["review_date"] = pd.to_datetime(df["review_date"], errors="coerce")
+    # 숫자 변환
     for col in ["annotations_completed","rework_required","valid_count","time_spent_minutes"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-    # 주차 및 라벨
+    # 주차(ISO)
     df["week_number"] = df["date"].dt.isocalendar().week
-    df["week_year"] = df["date"].dt.isocalendar().year
-    df["week_label"] = df.apply(
-        lambda r: f"{r['week_year']}년 {int(r['week_number'])}주차", axis=1
-    )
+    # 월별 주차: 월 시작 기준
+    df["month"] = df["date"].dt.month
+    df["week_of_month"] = ((df["date"].dt.day - 1) // 7) + 1
+    df["week_label"] = df["month"].astype(str) + "월 " + df["week_of_month"].astype(str) + "주차"
     # 프로젝트 기간 및 Phase
     start = df["date"].min()
     end   = df["date"].max()
-    df["project_start"], df["project_end"] = start, end
+    df["project_start"] = start
+    df["project_end"]   = end
     df["days_since_start"] = (df["date"] - start).dt.days
     total_days = (end - start).days + 1
     bins = [-1, total_days/3, total_days*2/3, total_days+1]
@@ -66,25 +68,26 @@ def load_and_clean(raw: pd.DataFrame) -> pd.DataFrame:
 
 def calculate_kpis(df: pd.DataFrame) -> dict:
     total = df["annotations_completed"].sum()
-    hrs = df["time_spent_minutes"].sum()/60
+    hours = df["time_spent_minutes"].sum() / 60
     start = df["project_start"].iloc[0]
     end   = df["project_end"].iloc[0]
     today = pd.to_datetime(date.today())
     last  = min(today, end)
-    elapsed = (last - start).days + 1
-    period  = (end - start).days + 1
-    avg_per_day = total/elapsed if elapsed>0 else 0
-    predicted_total = avg_per_day*period
+    elapsed_days = (last - start).days + 1
+    total_days   = (end - start).days + 1
+    avg_per_hour = total / hours if hours > 0 else 0
+    avg_per_day  = total / elapsed_days if elapsed_days > 0 else 0
+    predicted_total = avg_per_day * total_days
     return {
         "total_annotations": total,
-        "avg_per_hour": total/hrs if hrs>0 else 0,
-        "rework_rate": df["rework_required"].sum()/total if total>0 else 0,
+        "avg_per_hour": avg_per_hour,
+        "rework_rate": df["rework_required"].sum() / total if total > 0 else 0,
         "active_annotators": df["annotator_name"].nunique(),
-        "elapsed_pct": elapsed/period if period>0 else 0,
-        "predicted_pct": total/predicted_total if predicted_total>0 else 0
+        "elapsed_pct": elapsed_days / total_days if total_days > 0 else 0,
+        "predicted_pct": total / predicted_total if predicted_total > 0 else 0
     }
 
-# 사이드바
+# 사이드바: 데이터
 st.sidebar.header("📁 데이터 업로드 및 설정")
 uploaded = st.sidebar.file_uploader("Raw CSV 선택", type="csv")
 if st.sidebar.checkbox("샘플 데이터 사용"):
@@ -99,23 +102,21 @@ if st.sidebar.checkbox("샘플 데이터 사용"):
 elif uploaded:
     raw = pd.read_csv(uploaded, dtype=str)
 else:
-    st.info("CSV 업로드 또는 샘플 데이터 선택 필요")
+    st.info("Raw CSV를 업로드하거나 샘플 데이터를 선택하세요.")
     st.stop()
 
 df = load_and_clean(raw)
 
-# 프로젝트 ID 선택
-project_ids = df["project_id"].unique()
-sel_proj = st.sidebar.selectbox("프로젝트 선택", project_ids)
-df = df[df["project_id"]==sel_proj]
+# 프로젝트 선택
+sel_proj = st.sidebar.selectbox("프로젝트 선택", df["project_id"].unique())
+df = df[df["project_id"] == sel_proj]
 
-# 기간 설정
-st.sidebar.markdown("### 📅 기간 설정")
+# 기간 자유 설정
 start_date, end_date = st.sidebar.date_input(
     "분석 기간", (df["date"].min().date(), df["date"].max().date())
 )
-mask = (df["date"].dt.date>=start_date)&(df["date"].dt.date<=end_date)
-filtered = df[mask]
+mask = (df["date"].dt.date >= start_date) & (df["date"].dt.date <= end_date)
+filtered = df.loc[mask]
 
 # 작업자 필터
 workers = st.sidebar.multiselect(
@@ -126,13 +127,13 @@ filtered = filtered[filtered["annotator_name"].isin(workers)]
 # KPI
 kpis = calculate_kpis(filtered)
 st.markdown("## 📈 Executive Summary")
-c1,c2,c3,c4,c5,c6 = st.columns(6)
-c1.metric("총 완료 작업", f"{kpis['total_annotations']:,}")
-c2.metric("시간당 작업량", f"{kpis['avg_per_hour']:.1f}")
-c3.metric("재작업률", f"{kpis['rework_rate']:.1%}")
-c4.metric("활성 작업자", f"{kpis['active_annotators']}")
-c5.metric("경과 기간", f"{kpis['elapsed_pct']:.1%}")
-c6.metric("예측 완료율", f"{kpis['predicted_pct']:.1%}")
+cols = st.columns(6)
+cols[0].metric("총 완료 작업", f"{kpis['total_annotations']:,}")
+cols[1].metric("시간당 작업량", f"{kpis['avg_per_hour']:.1f}")
+cols[2].metric("재작업률", f"{kpis['rework_rate']:.1%}")
+cols[3].metric("활성 작업자", f"{kpis['active_annotators']}")
+cols[4].metric("경과 기간", f"{kpis['elapsed_pct']:.1%}")
+cols[5].metric("예측 완료율", f"{kpis['predicted_pct']:.1%}")
 
 # 일별 차트
 st.markdown("## 🗓️ 일별 완료 작업수")
@@ -141,17 +142,17 @@ fig_daily = px.line(daily, x="date", y="annotations_completed", title="Daily Ann
 st.plotly_chart(fig_daily, use_container_width=True)
 with st.expander("일별 상세 데이터", expanded=False):
     sel = st.selectbox("날짜 선택", daily["date"].astype(str))
-    st.dataframe(filtered[filtered["date"].dt.date==pd.to_datetime(sel).date()])
+    st.dataframe(filtered[filtered["date"].dt.date == pd.to_datetime(sel).date()])
 
 # 주별 차트
 st.markdown("## 📅 주별 완료 작업수")
 weekly = filtered.groupby("week_label")["annotations_completed"].sum().reset_index()
 fig_weekly = px.bar(weekly, x="week_label", y="annotations_completed", title="Weekly Annotations")
-fig_weekly.update_xaxes(tickangle= -45)
+fig_weekly.update_xaxes(tickangle=-45)
 st.plotly_chart(fig_weekly, use_container_width=True)
 with st.expander("주별 상세 데이터", expanded=False):
     sel = st.selectbox("주차 선택", weekly["week_label"])
-    st.dataframe(filtered[filtered["week_label"]==sel])
+    st.dataframe(filtered[filtered["week_label"] == sel])
 
 # 작업자별 차트
 st.markdown("## 👥 작업자별 완료 작업수")
@@ -160,7 +161,7 @@ fig_worker = px.bar(by_w, x="annotator_name", y="annotations_completed", title="
 st.plotly_chart(fig_worker, use_container_width=True)
 with st.expander("작업자별 상세 데이터", expanded=False):
     sel = st.selectbox("작업자 선택", by_w["annotator_name"])
-    st.dataframe(filtered[filtered["annotator_name"]==sel])
+    st.dataframe(filtered[filtered["annotator_name"] == sel])
 
 # Phase 차트
 st.markdown("## 🎯 Phase별 완료 작업 비율")
@@ -169,10 +170,9 @@ fig_phase = px.pie(phase, names="project_phase", values="annotations_completed",
 st.plotly_chart(fig_phase, use_container_width=True)
 with st.expander("Phase별 상세 데이터", expanded=False):
     sel = st.selectbox("Phase 선택", phase["project_phase"])
-    st.dataframe(filtered[filtered["project_phase"]==sel])
+    st.dataframe(filtered[filtered["project_phase"] == sel])
 
 # 전체 데이터
 with st.expander("📋 전체 데이터 보기/다운로드", expanded=False):
     st.dataframe(filtered)
-    csv = filtered.to_csv(index=False)
-    st.download_button("CSV 다운로드", csv, "data.csv", "text/csv")
+    st.download_button("CSV 다운로드", filtered.to_csv(index=False), "data.csv", "text/csv")
