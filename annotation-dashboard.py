@@ -24,12 +24,12 @@ st.markdown("""
 }
 .project-metric h4 {
     margin: 0;
-    font-size: 3rem;
+    font-size: 1rem;
     color: #555;
 }
 .project-metric p {
     margin: 0;
-    font-size: 5rem;
+    font-size: 3rem;  /* 크게 표시 */
     font-weight: bold;
     color: #222;
 }
@@ -47,20 +47,20 @@ if not uploaded:
 raw = pd.read_csv(uploaded, dtype=str)
 
 st.sidebar.header("⚙️ 프로젝트 파라미터")
-total_data_qty    = st.sidebar.number_input("데이터 총 수량", min_value=1, value=1000)
-open_date         = st.sidebar.date_input("오픈일", value=date.today())
-target_end_date   = st.sidebar.date_input("목표 종료일", value=date.today())
-daily_work_target = st.sidebar.number_input("1일 작업 목표", min_value=1, value=20)
+total_data_qty      = st.sidebar.number_input("데이터 총 수량", min_value=1, value=1000)
+open_date           = st.sidebar.date_input("오픈일", value=date.today())
+target_end_date     = st.sidebar.date_input("목표 종료일", value=date.today())
+daily_work_target   = st.sidebar.number_input("1일 작업 목표", min_value=1, value=20)
 daily_review_target = st.sidebar.number_input("1일 검수 목표", min_value=1, value=16)
-unit_price        = st.sidebar.number_input("작업 단가(원)", min_value=0, value=100)
-review_price      = st.sidebar.number_input("검수 단가(원)", min_value=0, value=50)
+unit_price          = st.sidebar.number_input("작업 단가(원)", min_value=0, value=100)
+review_price        = st.sidebar.number_input("검수 단가(원)", min_value=0, value=50)
 
 # DATA CLEANING
 df = raw.rename(columns={
-    "데이터 ID":"data_id","최종 오브젝트 수":"annotations_completed","유효 오브젝트 수":"valid_count",
-    "수정 여부":"rework_required","Worker ID":"worker_id","작업자 닉네임":"worker_name",
-    "Checker ID":"checker_id","검수자 닉네임":"checker_name","작업 종료일":"work_date",
-    "검수 종료일":"review_date","작업 수정 시간":"work_time_minutes"
+    "데이터 ID":"data_id", "최종 오브젝트 수":"annotations_completed", "유효 오브젝트 수":"valid_count",
+    "수정 여부":"rework_required", "Worker ID":"worker_id", "작업자 닉네임":"worker_name",
+    "Checker ID":"checker_id", "검수자 닉네임":"checker_name", "작업 종료일":"work_date",
+    "검수 종료일":"review_date", "작업 수정 시간":"work_time_minutes"
 })[[
     "data_id","annotations_completed","valid_count","rework_required",
     "worker_id","worker_name","checker_id","checker_name",
@@ -75,25 +75,43 @@ active_days = (target_end_date-open_date).days+1
 
 # PROJECT OVERVIEW
 completed_qty   = df["data_id"].nunique()
-remaining_qty   = total_data_qty-completed_qty
-progress_pct    = completed_qty/total_data_qty
+remaining_qty   = total_data_qty - completed_qty
+progress_pct    = completed_qty/total_data_qty if total_data_qty>0 else 0
 remaining_days  = (target_end_date-date.today()).days
 elapsed_days    = (date.today()-open_date).days+1
 daily_avg       = completed_qty/elapsed_days if elapsed_days>0 else 0
 predicted_total = daily_avg*active_days
-predicted_pct   = predicted_total/total_data_qty
+predicted_pct   = predicted_total/total_data_qty if total_data_qty>0 else 0
 
 st.markdown("## 📊 전체 프로젝트 현황")
-c1,c2,c3,c4 = st.columns(4)
-c1.markdown(f'<div class="metric-card"><h4>총 수량</h4><p>{total_data_qty:,}</p></div>', unsafe_allow_html=True)
-c2.markdown(f'<div class="metric-card"><h4>완료 수량</h4><p>{completed_qty:,}</p></div>', unsafe_allow_html=True)
-c3.markdown(f'<div class="metric-card"><h4>잔여 수량</h4><p>{remaining_qty:,}</p></div>', unsafe_allow_html=True)
-c4.markdown(f'<div class="metric-card"><h4>진행률</h4><p>{progress_pct:.1%}</p></div>', unsafe_allow_html=True)
-c5,c6,c7,c8 = st.columns(4)
-c5.markdown(f'<div class="metric-card"><h4>잔여일</h4><p>{remaining_days}</p></div>', unsafe_allow_html=True)
-c6.markdown(f'<div class="metric-card"><h4>1일 작업 목표</h4><p>{daily_work_target:,}</p></div>', unsafe_allow_html=True)
-c7.markdown(f'<div class="metric-card"><h4>1일 검수 목표</h4><p>{daily_review_target:,}</p></div>', unsafe_allow_html=True)
-c8.markdown(f'<div class="metric-card"><h4>예상 완료율</h4><p>{predicted_pct:.1%}</p></div>', unsafe_allow_html=True)
+col1, col2, col3, col4 = st.columns(4)
+for col, label, value, fmt in [
+    (col1, "총 수량", total_data_qty, "{:,}"),
+    (col2, "완료 수량", completed_qty, "{:,}"),
+    (col3, "잔여 수량", remaining_qty, "{:,}"),
+    (col4, "진행률", progress_pct, "{:.1%}")
+]:
+    col.markdown(f'''
+        <div class="project-metric">
+            <h4>{label}</h4>
+            <p>{fmt.format(value)}</p>
+        </div>
+    ''', unsafe_allow_html=True)
+col5, col6, col7, col8 = st.columns(4)
+for col, label, value, fmt in [
+    (col5, "잔여일", remaining_days, "{:,}"),
+    (col6, "1일 작업 목표", daily_work_target, "{:,}"),
+    (col7, "1일 검수 목표", daily_review_target, "{:,}"),
+    (col8, "예상 완료율", predicted_pct, "{:.1%}")
+]:
+    col.markdown(f'''
+        <div class="project-metric">
+            <h4>{label}</h4>
+            <p>{fmt.format(value)}</p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+
 
 # PROGRESSION CHART
 dates = pd.date_range(open_date, target_end_date)
