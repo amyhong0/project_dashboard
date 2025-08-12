@@ -29,7 +29,7 @@ st.markdown("""
 }
 .project-metric p {
     margin: 0;
-    font-size: 2rem;
+    font-size: 3rem;
     font-weight: bold;
     color: #222;
 }
