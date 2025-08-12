@@ -24,7 +24,7 @@ st.markdown("""
 }
 .project-metric h4 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 3rem;
     color: #555;
 }
 .project-metric p {
