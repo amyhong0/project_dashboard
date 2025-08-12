@@ -4,7 +4,6 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 from datetime import datetime
-from streamlit_plotly_events import plotly_events
 
 st.set_page_config(page_title="Project Dashboard", layout="wide")
 
@@ -109,50 +108,41 @@ c2.metric("시간당 작업량", f"{kpis['avg_per_hour']:.1f}")
 c3.metric("재작업률", f"{kpis['rework_rate']:.1%}")
 c4.metric("활성 작업자", f"{kpis['active_annotators']}")
 
-# 전체 기간별 (일별) 차트 + 상세
+# 전체 기간별 (일별) 차트 + 상세 선택
 st.markdown("## 🗓️ 일별 완료 작업수")
 daily = filtered.groupby(filtered["date"].dt.date)["annotations_completed"].sum().reset_index()
 fig_daily = px.line(daily, x="date", y="annotations_completed", title="Daily Annotations")
-selected = plotly_events(fig_daily, click_event=True, key="daily")
 st.plotly_chart(fig_daily, use_container_width=True)
-if selected:
-    sel_date = selected[0]["x"]
-    st.write(f"### {sel_date} 상세 데이터")
-    df_day = filtered[filtered["date"].dt.date==pd.to_datetime(sel_date).date()]
-    st.dataframe(df_day)
+sel_date = st.selectbox("날짜별 상세 보기", daily["date"].astype(str))
+df_day = filtered[filtered["date"].dt.date==pd.to_datetime(sel_date).date()]
+st.dataframe(df_day)
 
-# 주 단위 차트 + 상세
+# 주 단위 차트 + 상세 선택
 st.markdown("## 📅 주별 완료 작업수")
 weekly = filtered.groupby("week_number")["annotations_completed"].sum().reset_index()
 fig_weekly = px.bar(weekly, x="week_number", y="annotations_completed", title="Weekly Annotations")
-selected = plotly_events(fig_weekly, click_event=True, key="weekly")
 st.plotly_chart(fig_weekly, use_container_width=True)
-if selected:
-    week = selected[0]["x"]
-    st.write(f"### Week {week} 상세 데이터")
-    st.dataframe(filtered[filtered["week_number"]==week])
+sel_week = st.selectbox("주차별 상세 보기", weekly["week_number"])
+df_week = filtered[filtered["week_number"]==sel_week]
+st.dataframe(df_week)
 
-# 작업자별 차트 + 상세
+# 작업자별 차트 + 상세 선택
 st.markdown("## 👥 작업자별 완료 작업수")
 by_w = filtered.groupby("annotator_name")["annotations_completed"].sum().reset_index()
 fig_worker = px.bar(by_w, x="annotator_name", y="annotations_completed", title="By Annotator")
-selected = plotly_events(fig_worker, click_event=True, key="worker")
 st.plotly_chart(fig_worker, use_container_width=True)
-if selected:
-    name = selected[0]["x"]
-    st.write(f"### {name} 상세 데이터")
-    st.dataframe(filtered[filtered["annotator_name"]==name])
+sel_worker = st.selectbox("작업자별 상세 보기", by_w["annotator_name"])
+df_worker = filtered[filtered["annotator_name"]==sel_worker]
+st.dataframe(df_worker)
 
-# Phase별 차트 + 상세
+# Phase별 차트 + 상세 선택
 st.markdown("## 🎯 Phase별 완료 작업 비율")
 phase = filtered.groupby("project_phase")["annotations_completed"].sum().reset_index()
 fig_phase = px.pie(phase, names="project_phase", values="annotations_completed", title="By Phase")
-selected = plotly_events(fig_phase, click_event=True, key="phase")
 st.plotly_chart(fig_phase, use_container_width=True)
-if selected:
-    ph = selected[0]["label"]
-    st.write(f"### {ph} 상세 데이터")
-    st.dataframe(filtered[filtered["project_phase"]==ph])
+sel_phase = st.selectbox("Phase별 상세 보기", phase["project_phase"])
+df_phase = filtered[filtered["project_phase"]==sel_phase]
+st.dataframe(df_phase)
 
 # 전체 데이터 다운로드
 with st.expander("📋 전체 데이터 보기/다운로드"):
