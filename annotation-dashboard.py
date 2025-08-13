@@ -10,22 +10,35 @@ st.set_page_config(page_title="Project Dashboard", layout="wide")
 # DARK THEME STYLES
 st.markdown("""
 <style>
-.stApp {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
+/* App Background & Text */
+body, .stApp, .main .block-container {
+    background-color: #1E1E1E !important;
+    color: #FFFFFF !important;
 }
-.main .block-container {
-    background-color: #1E1E1E;
-    color: #FFFFFF;
-}
+
+/* Header */
 .main-header {
     background: linear-gradient(90deg, #2E86C1 0%, #1ABC9C 100%);
     padding: 1rem;
     border-radius: 0.5rem;
-    color: white;
+    color: #FFFFFF;
     text-align: center;
     margin-bottom: 1rem;
 }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #262626 !important;
+    color: #FFFFFF !important;
+}
+[data-testid="stSidebar"] .stMarkdown p, 
+[data-testid="stSidebar"] .stText, 
+[data-testid="stSidebar"] .stNumberInput, 
+[data-testid="stSidebar"] .stDateInput {
+    color: #FFFFFF !important;
+}
+
+/* Project Metric Cards */
 .project-metric {
     text-align: center;
     margin: 0.5rem;
@@ -45,32 +58,33 @@ st.markdown("""
     font-weight: bold;
     color: #FFFFFF;
 }
-h1, h2, h3, h4, h5, h6 {
+
+/* Tables */
+.stDataFrame table, .stTable table {
+    background-color: #2C2C2C !important;
     color: #FFFFFF !important;
 }
-.stMarkdown p {
+.stDataFrame th, .stTable th {
+    background-color: #333333 !important;
     color: #FFFFFF !important;
 }
-div[data-testid="stSidebar"] {
-    background-color: #262626;
-}
-div[data-testid="stSidebar"] * {
+.stDataFrame td, .stTable td {
+    background-color: #2C2C2C !important;
     color: #FFFFFF !important;
 }
-.stDataFrame {
-    background-color: #2C2C2C;
-}
-.stTable {
-    background-color: #2C2C2C;
-    color: #FFFFFF;
+
+/* Plotly dark background */
+[data-testid="stPlotlyChart"] svg {
+    background-color: #1E1E1E !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
+# HEADER
 st.markdown('<div class="main-header"><h1>Project Dashboard</h1></div>', unsafe_allow_html=True)
 
 # SIDEBAR INPUTS
-st.sidebar.header("📁 데이터 및 파라미터")
+st.sidebar.header("📁 데이터 및 설정")
 uploaded = st.sidebar.file_uploader("export.csv 업로드", type="csv")
 if not uploaded:
     st.info("export.csv 파일을 업로드하세요.")
@@ -141,6 +155,9 @@ for col,label,value,fmt in [
             <p>{fmt.format(value)}</p>
         </div>
     ''', unsafe_allow_html=True)
+
+
+
 
 # PROGRESSION CHART
 dates = pd.date_range(open_date, target_end_date)
