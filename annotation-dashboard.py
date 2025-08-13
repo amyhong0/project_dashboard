@@ -7,17 +7,19 @@ from datetime import date
 
 st.set_page_config(page_title="Project Dashboard", layout="wide")
 
-# STYLES
+# DARK THEME STYLES
 st.markdown("""
 <style>
 .stApp {
-    background-color: #1e1e1e !important;
+    background-color: #1E1E1E;
+    color: #FFFFFF;
 }
 .main .block-container {
-    background-color: #1e1e1e !important;
+    background-color: #1E1E1E;
+    color: #FFFFFF;
 }
 .main-header {
-    background: #0176d3;
+    background: linear-gradient(90deg, #2E86C1 0%, #1ABC9C 100%);
     padding: 1rem;
     border-radius: 0.5rem;
     color: white;
@@ -27,20 +29,40 @@ st.markdown("""
 .project-metric {
     text-align: center;
     margin: 0.5rem;
+    padding: 1rem;
+    background-color: #2C2C2C;
+    border-radius: 0.5rem;
+    border: 1px solid #404040;
 }
 .project-metric h4 {
     margin: 0;
     font-size: 1rem;
-    color: #ccc;
+    color: #B0B0B0;
 }
 .project-metric p {
     margin: 0;
     font-size: 3rem;
     font-weight: bold;
-    color: #fff;
+    color: #FFFFFF;
 }
-h1, h2, h3, h4, h5, h6, p, div, span {
-    color: #fff !important;
+h1, h2, h3, h4, h5, h6 {
+    color: #FFFFFF !important;
+}
+.stMarkdown p {
+    color: #FFFFFF !important;
+}
+div[data-testid="stSidebar"] {
+    background-color: #262626;
+}
+div[data-testid="stSidebar"] * {
+    color: #FFFFFF !important;
+}
+.stDataFrame {
+    background-color: #2C2C2C;
+}
+.stTable {
+    background-color: #2C2C2C;
+    color: #FFFFFF;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -127,6 +149,7 @@ daily_done.columns = ["date","cumulative"]
 target_line = pd.DataFrame({"date":dates.date,"cumulative":np.linspace(0,total_data_qty,len(dates))})
 fig=px.line(daily_done, x="date", y="cumulative", title="프로젝트 진행 추이")
 fig.add_scatter(x=target_line["date"], y=target_line["cumulative"], mode="lines", name="목표선")
+fig.update_layout(plot_bgcolor='#2C2C2C', paper_bgcolor='#2C2C2C', font_color='white')
 st.plotly_chart(fig, use_container_width=True)
 
 # WEEKLY PROGRESS
@@ -146,13 +169,17 @@ weekly["review_wait"]=df[(df["annotations_completed"]>0)&df["review_date"].isna(
 
 st.markdown("## 📊 주별 진척률")
 fig1=px.bar(weekly, x="week_label", y=["work_actual","work_target"], barmode="group", title="주별 작업")
-fig1.update_xaxes(tickangle=-45); st.plotly_chart(fig1,use_container_width=True)
+fig1.update_xaxes(tickangle=-45)
+fig1.update_layout(plot_bgcolor='#2C2C2C', paper_bgcolor='#2C2C2C', font_color='white')
+st.plotly_chart(fig1,use_container_width=True)
 st.table(weekly[["week_label","work_actual","work_target","work_pct"]]
          .assign(work_pct=lambda df: df["work_pct"].map("{:.1%}".format))
          .rename(columns={"week_label":"주차","work_actual":"실제","work_target":"목표","work_pct":"달성율"}))
 
 fig2=px.bar(weekly, x="week_label", y=["review_actual","review_target"], barmode="group", title="주별 검수")
-fig2.update_xaxes(tickangle=-45); st.plotly_chart(fig2,use_container_width=True)
+fig2.update_xaxes(tickangle=-45)
+fig2.update_layout(plot_bgcolor='#2C2C2C', paper_bgcolor='#2C2C2C', font_color='white')
+st.plotly_chart(fig2,use_container_width=True)
 st.table(weekly[["week_label","review_actual","review_target","review_pct","review_wait"]]
          .assign(review_pct=lambda df: df["review_pct"].map("{:.1%}".format))
          .rename(columns={"week_label":"주차","review_actual":"실제","review_target":"목표",
@@ -190,13 +217,14 @@ summary_w["작업수량"]=summary_w["작업수량"].map("{:.0f}".format)
 st.table(summary_w)
 
 fig_wd=px.bar(wd.sort_values("completed",ascending=False),x="worker_name",y="completed",title="작업량 by 작업자")
+fig_wd.update_layout(plot_bgcolor='#2C2C2C', paper_bgcolor='#2C2C2C', font_color='white')
 st.plotly_chart(fig_wd,use_container_width=True)
 st.dataframe(wd.sort_values("completed",ascending=False)[[
     "worker_id","worker_name","activity_pct","hourly_rate","reject_pct","completed",
     "avg_min_per_task","daily_min","last_date","abnormal_flag"
 ]].rename(columns={
     "worker_id":"ID","worker_name":"닉네임","activity_pct":"활성률(%)","hourly_rate":"시급(원)",
-    "reject_pct":"반려율(%)","completed":"작업수량","avg_min_per_task":"건당평균(분)",
+    "reject_pct":"반료율(%)","completed":"작업수량","avg_min_per_task":"건당평균(분)",
     "daily_min":"일평균(분)","last_date":"마지막작업일","abnormal_flag":"이상참여자"
 }).style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]),use_container_width=True)
 
@@ -231,6 +259,7 @@ summary_c["검수수량"]=summary_c["검수수량"].map("{:.0f}".format)
 st.table(summary_c)
 
 fig_cd=px.bar(cd.sort_values("reviews",ascending=False),x="checker_name",y="reviews",title="검수량 by 검수자")
+fig_cd.update_layout(plot_bgcolor='#2C2C2C', paper_bgcolor='#2C2C2C', font_color='white')
 st.plotly_chart(fig_cd,use_container_width=True)
 st.dataframe(cd.sort_values("reviews",ascending=False)[[
     "checker_id","checker_name","activity_pct","hourly_rate","error_pct","reviews",
@@ -240,3 +269,4 @@ st.dataframe(cd.sort_values("reviews",ascending=False)[[
     "error_pct":"오류율(%)","reviews":"검수수량","avg_min_per_task":"건당평균(분)",
     "daily_min":"일평균(분)","last_date":"마지막검수일","abnormal_flag":"이상참여자"
 }).style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]),use_container_width=True)
+
