@@ -145,7 +145,6 @@ st.table(summary_w)
 fig_wd = px.bar(wd.sort_values("completed",ascending=False), x="worker_name", y="completed", title="작업량 by 작업자", template="plotly_white")
 st.plotly_chart(fig_wd, use_container_width=True)
 
-# WEEKLY WORKER
 st.subheader("👤 주별 작업자 현황")
 for week in weekly["주차"][:-1]:
     st.markdown(f"### {week}")
@@ -170,7 +169,6 @@ for week in weekly["주차"][:-1]:
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
     }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
 
-# CHECKER OVERVIEW
 cd = df.groupby(["checker_id","checker_name"]).agg(
     review_count=("valid_count","sum"),
     work_time=("work_time_minutes","sum"),
@@ -201,7 +199,6 @@ st.table(summary_c)
 fig_cd = px.bar(cd.sort_values("review_count",ascending=False), x="checker_name", y="review_count", title="검수량 by 검수자", template="plotly_white")
 st.plotly_chart(fig_cd, use_container_width=True)
 
-# WEEKLY CHECKER
 st.subheader("👮 주별 검수자 현황")
 for week in weekly["주차"][:-1]:
     st.markdown(f"### {week}")
@@ -224,5 +221,4 @@ for week in weekly["주차"][:-1]:
         "checker_id":"ID","checker_name":"닉네임","review_count":"검수수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
-
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
