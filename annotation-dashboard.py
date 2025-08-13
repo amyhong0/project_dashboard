@@ -120,9 +120,9 @@ wd = df.groupby(["worker_id","worker_name"]).agg(
     last_date=("work_date","max")
 ).reset_index()
 wd["hours"] = wd["work_time"]/60
-wd["hourly_rate"] = (wd["completed"]/wd["hours"].replace(0,np.nan)*unit_price).round().astype(int)
-wd["avg_min_per_task"] = ((wd["work_time"]/wd["completed"].replace(0,np.nan))).round().astype(int)
-wd["daily_min"] = ((wd["work_time"]/active_days)).round().astype(int)
+wd["hourly_rate"] = (wd["completed"]/wd["hours"].replace(0,np.nan)*unit_price).fillna(0).round().astype(int)
+wd["avg_min_per_task"] = ((wd["work_time"]/wd["completed"].replace(0,np.nan))).fillna(0).round().astype(int)
+wd["daily_min"] = ((wd["work_time"]/active_days)).fillna(0).round().astype(int)
 wd["reject_rate"] = (wd["rework"]/wd["completed"].replace(0,np.nan)).clip(lower=0)
 wd["activity_rate"] = wd["hours"]/(active_days*8)
 wd["reject_pct"] = wd["reject_rate"].map("{:.1%}".format)
@@ -145,6 +145,7 @@ st.table(summary_w)
 fig_wd = px.bar(wd.sort_values("completed",ascending=False), x="worker_name", y="completed", title="작업량 by 작업자", template="plotly_white")
 st.plotly_chart(fig_wd, use_container_width=True)
 
+# WEEKLY WORKER
 st.subheader("👤 주별 작업자 현황")
 for week in weekly["주차"][:-1]:
     st.markdown(f"### {week}")
@@ -153,31 +154,32 @@ for week in weekly["주차"][:-1]:
         completed=("annotations_completed","sum"),
         work_time=("work_time_minutes","sum")
     ).reset_index()
-    wwd["hourly_rate"] = (wwd["completed"]/(wwd["work_time"]/60).replace(0,np.nan)*unit_price).round().astype(int)
-    wwd["avg_min_per_task"] = ((wwd["work_time"]/wwd["completed"].replace(0,np.nan))).round().astype(int)
-    wwd["daily_min"] = ((wwd["work_time"]/active_days)).round().astype(int)
+    wwd["hourly_rate"] = (wwd["completed"]/(wwd["work_time"]/60).replace(0,np.nan)*unit_price).fillna(0).round().astype(int)
+    wwd["avg_min_per_task"] = ((wwd["work_time"]/wwd["completed"].replace(0,np.nan))).fillna(0).round().astype(int)
+    wwd["daily_min"] = ((wwd["work_time"]/active_days)).fillna(0).round().astype(int)
     subtotal = pd.DataFrame([{
         "worker_id":"합계","worker_name":"",
         "completed":wwd["completed"].sum(),"work_time":wwd["work_time"].sum(),
         "hourly_rate":wwd["hourly_rate"].sum(),
-        "avg_min_per_task":int(wwd["avg_min_per_task"].mean()),"daily_min":wwd["daily_min"].sum()
+        "avg_min_per_task":wwd["avg_min_per_task"].mean(), "daily_min":wwd["daily_min"].sum()
     }])
     tbl = pd.concat([wwd, subtotal], ignore_index=True)
     st.table(tbl.rename(columns={
         "worker_id":"ID","worker_name":"닉네임","completed":"작업수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
-
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
+    
+# CHECKER OVERVIEW
 cd = df.groupby(["checker_id","checker_name"]).agg(
     review_count=("valid_count","sum"),
     work_time=("work_time_minutes","sum"),
     last_date=("review_date","max")
 ).reset_index()
-cd["hourly_rate"] = (cd["review_count"]/(cd["work_time"]/60).replace(0,np.nan)*review_price).round().astype(int)
-cd["avg_min_per_task"] = ((cd["work_time"]/cd["review_count"].replace(0,np.nan))).round().astype(int)
-cd["daily_min"] = ((cd["work_time"]/active_days)).round().astype(int)
-cd["error_rate"] = ((cd["review_count"]-cd["review_count"])/cd["review_count"].replace(0,np.nan)).clip(lower=0)
+cd["hourly_rate"] = (cd["review_count"]/(cd["work_time"]/60).replace(0,np.nan)*review_price).fillna(0).round().astype(int)
+cd["avg_min_per_task"] = ((cd["work_time"]/cd["review_count"].replace(0,np.nan))).fillna(0).round().astype(int)
+cd["daily_min"] = ((cd["work_time"]/active_days)).fillna(0).round().astype(int)
+cd["error_rate"] = 0  # placeholder
 cd["error_pct"] = cd["error_rate"].map("{:.1%}".format)
 cd["activity_rate"] = cd["work_time"]/60/(active_days*8)
 cd["activity_pct"] = cd["activity_rate"].map("{:.1%}".format)
@@ -207,18 +209,19 @@ for week in weekly["주차"][:-1]:
         review_count=("valid_count","sum"),
         work_time=("work_time_minutes","sum")
     ).reset_index()
-    wcd["hourly_rate"] = (wcd["review_count"]/(wcd["work_time"]/60).replace(0,np.nan)*review_price).round().astype(int)
-    wcd["avg_min_per_task"] = ((wcd["work_time"]/wcd["review_count"].replace(0,np.nan))).round().astype(int)
-    wcd["daily_min"] = ((wcd["work_time"]/active_days)).round().astype(int)
+    wcd["hourly_rate"] = (wcd["review_count"]/(wcd["work_time"]/60).replace(0,np.nan)*review_price).fillna(0).round().astype(int)
+    wcd["avg_min_per_task"] = ((wcd["work_time"]/wcd["review_count"].replace(0,np.nan))).fillna(0).round().astype(int)
+    wcd["daily_min"] = ((wcd["work_time"]/active_days)).fillna(0).round().astype(int)
     subtotal = pd.DataFrame([{
         "checker_id":"합계","checker_name":"",
         "review_count":wcd["review_count"].sum(),"work_time":wcd["work_time"].sum(),
         "hourly_rate":wcd["hourly_rate"].sum(),
-        "avg_min_per_task":int(wcd["avg_min_per_task"].mean()),"daily_min":wcd["daily_min"].sum()
+        "avg_min_per_task":wcd["avg_min_per_task"].mean(),"daily_min":wcd["daily_min"].sum()
     }])
     tbl = pd.concat([wcd, subtotal], ignore_index=True)
     st.table(tbl.rename(columns={
         "checker_id":"ID","checker_name":"닉네임","review_count":"검수수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
+
