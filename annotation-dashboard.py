@@ -12,9 +12,9 @@ st.markdown('<h1 style="text-align:center; color:#333;">Project Dashboard</h1>',
 
 # SIDEBAR INPUTS
 st.sidebar.header("📁 데이터 및 파라미터")
-uploaded = st.sidebar.file_uploader("export.csv 업로드", type="csv")
+uploaded = st.sidebar.file_uploader("원천데이터 업로드", type="csv")
 if not uploaded:
-    st.info("export.csv 파일을 업로드하세요.")
+    st.info("CSV 파일을 업로드하세요.")
     st.stop()
 raw = pd.read_csv(uploaded, dtype=str)
 
@@ -95,18 +95,23 @@ st.subheader("📊 주별 진척률 - 작업")
 fig1 = px.bar(weekly, x="week_label", y=["work_actual","work_target"], barmode="group", template="plotly_white")
 fig1.update_xaxes(tickangle=-45)
 st.plotly_chart(fig1, use_container_width=True)
-st.dataframe(weekly[["week_label","work_actual","work_target","work_pct"]]
-             .assign(work_pct=lambda df: df["work_pct"].map("{:.1%}".format))
-             .rename(columns={"week_label":"주차","work_actual":"실제","work_target":"목표","work_pct":"달성율"}))
+st.dataframe(weekly[["week_label","work_actual","work_target","work_pct"]].assign(
+    work_actual=lambda df: df["work_actual"].map(lambda x: f"{x:,}"),
+    work_target=lambda df: df["work_target"].map(lambda x: f"{x:,}"),
+    work_pct=lambda df: df["work_pct"].map("{:.1%}".format)
+).rename(columns={"week_label":"주차","work_actual":"실제 건수","work_target":"목표 건수","work_pct":"달성율"}))
 
 st.subheader("📊 주별 진척률 - 검수")
 fig2 = px.bar(weekly, x="week_label", y=["review_actual","review_target"], barmode="group", template="plotly_white")
 fig2.update_xaxes(tickangle=-45)
 st.plotly_chart(fig2, use_container_width=True)
-st.dataframe(weekly[["week_label","review_actual","review_target","review_pct","review_wait"]]
-             .assign(review_pct=lambda df: df["review_pct"].map("{:.1%}".format))
-             .rename(columns={"week_label":"주차","review_actual":"실제","review_target":"목표",
-                              "review_pct":"달성율","review_wait":"대기수"}))
+st.dataframe(weekly[["week_label","review_actual","review_target","review_pct","review_wait"]].assign(
+    review_actual=lambda df: df["review_actual"].map(lambda x: f"{x:,}"),
+    review_target=lambda df: df["review_target"].map(lambda x: f"{x:,}"),
+    review_wait=lambda df: df["review_wait"].map(lambda x: f"{x:,}"),
+    review_pct=lambda df: df["review_pct"].map("{:.1%}".format)
+).rename(columns={"week_label":"주차","review_actual":"실제 건수","review_target":"목표 건수",
+                  "review_pct":"달성율","review_wait":"검수 대기 건수"}))
 
 # WORKER METRICS
 wd = df.groupby(["worker_id","worker_name"]).agg(
@@ -135,20 +140,31 @@ summary_w = pd.DataFrame({
     "작업수량":[wd["completed"].mean(),wd[wd["abnormal_flag"]=="N"]["completed"].mean()]
 })
 summary_w[["활성률(%)","반려율(%)"]] = summary_w[["활성률(%)","반려율(%)"]].applymap(lambda x:f"{x:.1%}")
-summary_w["시급(원)"] = summary_w["시급(원)"].map("{:.0f}".format)
-summary_w["작업수량"] = summary_w["작업수량"].map("{:.0f}".format)
+summary_w["시급(원)"] = summary_w["시급(원)"].map(lambda x: f"{x:,.0f}")
+summary_w["작업수량"] = summary_w["작업수량"].map(lambda x: f"{x:,.0f}")
 st.table(summary_w)
 
 fig_wd = px.bar(wd.sort_values("completed",ascending=False), x="worker_name", y="completed", title="작업량 by 작업자", template="plotly_white")
 st.plotly_chart(fig_wd, use_container_width=True)
-st.dataframe(wd.sort_values("completed",ascending=False)[[
+
+# Worker dataframe with styling
+worker_display = wd.sort_values("completed",ascending=False)[[
     "worker_id","worker_name","activity_pct","hourly_rate","reject_pct","completed",
     "avg_min_per_task","daily_min","last_date","abnormal_flag"
-]].rename(columns={
+]].copy()
+
+worker_display["hourly_rate"] = worker_display["hourly_rate"].map(lambda x: f"{x:,}")
+worker_display["completed"] = worker_display["completed"].map(lambda x: f"{x:,}")
+worker_display["avg_min_per_task"] = worker_display["avg_min_per_task"].map(lambda x: f"{x:,}")
+worker_display["daily_min"] = worker_display["daily_min"].map(lambda x: f"{x:,}")
+
+worker_display = worker_display.rename(columns={
     "worker_id":"ID","worker_name":"닉네임","activity_pct":"활성률(%)","hourly_rate":"시급(원)",
-    "reject_pct":"반려율(%)","completed":"작업수량","avg_min_per_task":"건당평균(분)",
+    "reject_pct":"반료율(%)","completed":"작업수량","avg_min_per_task":"건당평균(분)",
     "daily_min":"일평균(분)","last_date":"마지막작업일","abnormal_flag":"이상참여자"
-}), use_container_width=True)
+})
+
+st.dataframe(worker_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
 
 # CHECKER METRICS
 cd = df.groupby(["checker_id","checker_name"]).agg(
@@ -176,18 +192,28 @@ summary_c = pd.DataFrame({
     "검수수량":[cd["reviews"].mean(),cd[cd["abnormal_flag"]=="N"]["reviews"].mean()]
 })
 summary_c[["활성률(%)","오류율(%)"]] = summary_c[["활성률(%)","오류율(%)"]].applymap(lambda x:f"{x:.1%}")
-summary_c["시급(원)"] = summary_c["시급(원)"].map("{:.0f}".format)
-summary_c["검수수량"] = summary_c["검수수량"].map("{:.0f}".format)
+summary_c["시급(원)"] = summary_c["시급(원)"].map(lambda x: f"{x:,.0f}")
+summary_c["검수수량"] = summary_c["검수수량"].map(lambda x: f"{x:,.0f}")
 st.table(summary_c)
 
 fig_cd = px.bar(cd.sort_values("reviews",ascending=False), x="checker_name", y="reviews", title="검수량 by 검수자", template="plotly_white")
 st.plotly_chart(fig_cd, use_container_width=True)
-st.dataframe(cd.sort_values("reviews",ascending=False)[[
+
+# Checker dataframe with styling
+checker_display = cd.sort_values("reviews",ascending=False)[[
     "checker_id","checker_name","activity_pct","hourly_rate","error_pct","reviews",
     "avg_min_per_task","daily_min","last_date","abnormal_flag"
-]].rename(columns={
+]].copy()
+
+checker_display["hourly_rate"] = checker_display["hourly_rate"].map(lambda x: f"{x:,}")
+checker_display["reviews"] = checker_display["reviews"].map(lambda x: f"{x:,}")
+checker_display["avg_min_per_task"] = checker_display["avg_min_per_task"].map(lambda x: f"{x:,}")
+checker_display["daily_min"] = checker_display["daily_min"].map(lambda x: f"{x:,}")
+
+checker_display = checker_display.rename(columns={
     "checker_id":"ID","checker_name":"닉네임","activity_pct":"활성률(%)","hourly_rate":"시급(원)",
     "error_pct":"오류율(%)","reviews":"검수수량","avg_min_per_task":"건당평균(분)",
     "daily_min":"일평균(분)","last_date":"마지막검수일","abnormal_flag":"이상참여자"
-}), use_container_width=True)
+})
 
+st.dataframe(checker_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
