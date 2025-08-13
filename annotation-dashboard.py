@@ -10,9 +10,11 @@ st.set_page_config(page_title="Project Dashboard", layout="wide")
 # STYLES
 st.markdown("""
 <style>
-body {
-    background-color: #000 !important;
-    color: #fff !important;
+.stApp {
+    background-color: #1e1e1e !important;
+}
+.main .block-container {
+    background-color: #1e1e1e !important;
 }
 .main-header {
     background: #0176d3;
@@ -21,10 +23,6 @@ body {
     color: white;
     text-align: center;
     margin-bottom: 1rem;
-}
-.metric-card, .project-metric, table, th, td {
-    background: transparent !important;
-    color: #fff !important;
 }
 .project-metric {
     text-align: center;
@@ -41,8 +39,7 @@ body {
     font-weight: bold;
     color: #fff;
 }
-.stDataFrame th {
-    background-color: #333 !important;
+h1, h2, h3, h4, h5, h6, p, div, span {
     color: #fff !important;
 }
 </style>
@@ -69,10 +66,10 @@ review_price        = st.sidebar.number_input("검수 단가(원)", min_value=0,
 
 # DATA CLEANING
 df = raw.rename(columns={
-    "데이터 ID":"data_id", "최종 오브젝트 수":"annotations_completed", "유효 오브젝트 수":"valid_count",
-    "수정 여부":"rework_required", "Worker ID":"worker_id", "작업자 닉네임":"worker_name",
-    "Checker ID":"checker_id", "검수자 닉네임":"checker_name", "작업 종료일":"work_date",
-    "검수 종료일":"review_date", "작업 수정 시간":"work_time_minutes"
+    "데이터 ID":"data_id","최종 오브젝트 수":"annotations_completed","유효 오브젝트 수":"valid_count",
+    "수정 여부":"rework_required","Worker ID":"worker_id","작업자 닉네임":"worker_name",
+    "Checker ID":"checker_id","검수자 닉네임":"checker_name","작업 종료일":"work_date",
+    "검수 종료일":"review_date","작업 수정 시간":"work_time_minutes"
 })[[
     "data_id","annotations_completed","valid_count","rework_required",
     "worker_id","worker_name","checker_id","checker_name",
@@ -96,12 +93,12 @@ predicted_total = daily_avg*active_days
 predicted_pct   = predicted_total/total_data_qty if total_data_qty>0 else 0
 
 st.markdown("## 📊 전체 프로젝트 현황")
-col1, col2, col3, col4 = st.columns(4)
-for col, label, value, fmt in [
-    (col1, "총 수량", total_data_qty, "{:,}"),
-    (col2, "완료 수량", completed_qty, "{:,}"),
-    (col3, "잔여 수량", remaining_qty, "{:,}"),
-    (col4, "진행률", progress_pct, "{:.1%}")
+col1,col2,col3,col4 = st.columns(4)
+for col,label,value,fmt in [
+    (col1,"총 수량",total_data_qty,"{:,}"),
+    (col2,"완료 수량",completed_qty,"{:,}"),
+    (col3,"잔여 수량",remaining_qty,"{:,}"),
+    (col4,"진행률",progress_pct,"{:.1%}")
 ]:
     col.markdown(f'''
         <div class="project-metric">
@@ -109,12 +106,12 @@ for col, label, value, fmt in [
             <p>{fmt.format(value)}</p>
         </div>
     ''', unsafe_allow_html=True)
-col5, col6, col7, col8 = st.columns(4)
-for col, label, value, fmt in [
-    (col5, "잔여일", remaining_days, "{:,}"),
-    (col6, "1일 작업 목표", daily_work_target, "{:,}"),
-    (col7, "1일 검수 목표", daily_review_target, "{:,}"),
-    (col8, "예상 완료율", predicted_pct, "{:.1%}")
+col5,col6,col7,col8 = st.columns(4)
+for col,label,value,fmt in [
+    (col5,"잔여일",remaining_days,"{:,}"),
+    (col6,"1일 작업 목표",daily_work_target,"{:,}"),
+    (col7,"1일 검수 목표",daily_review_target,"{:,}"),
+    (col8,"예상 완료율",predicted_pct,"{:.1%}")
 ]:
     col.markdown(f'''
         <div class="project-metric">
@@ -122,11 +119,6 @@ for col, label, value, fmt in [
             <p>{fmt.format(value)}</p>
         </div>
     ''', unsafe_allow_html=True)
-    
-
-
-
-
 
 # PROGRESSION CHART
 dates = pd.date_range(open_date, target_end_date)
@@ -248,4 +240,3 @@ st.dataframe(cd.sort_values("reviews",ascending=False)[[
     "error_pct":"오류율(%)","reviews":"검수수량","avg_min_per_task":"건당평균(분)",
     "daily_min":"일평균(분)","last_date":"마지막검수일","abnormal_flag":"이상참여자"
 }).style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]),use_container_width=True)
-
