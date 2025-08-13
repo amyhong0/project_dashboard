@@ -5,15 +5,16 @@ import plotly.express as px
 import numpy as np
 from datetime import date
 
-st.set_page_config(page_title="Project Dashboard", layout="wide")
+# Use Streamlit's dark theme as default
+st.set_page_config(page_title="Project Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# DARK THEME STYLES
+# GLOBAL DARK THEME CSS
 st.markdown("""
 <style>
-/* App Background & Text */
+/* App background and text */
 body, .stApp, .main .block-container {
-    background-color: #1E1E1E !important;
-    color: #FFFFFF !important;
+    background-color: #121212 !important;
+    color: #E0E0E0 !important;
 }
 
 /* Header */
@@ -21,61 +22,68 @@ body, .stApp, .main .block-container {
     background: linear-gradient(90deg, #2E86C1 0%, #1ABC9C 100%);
     padding: 1rem;
     border-radius: 0.5rem;
-    color: #FFFFFF;
+    color: #FFF;
     text-align: center;
     margin-bottom: 1rem;
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background-color: #262626 !important;
-    color: #FFFFFF !important;
+    background-color: #1F1F1F !important;
+    color: #E0E0E0 !important;
 }
-[data-testid="stSidebar"] .stMarkdown p, 
 [data-testid="stSidebar"] .stText, 
 [data-testid="stSidebar"] .stNumberInput, 
 [data-testid="stSidebar"] .stDateInput {
-    color: #FFFFFF !important;
+    background-color: #2B2B2B !important;
+    color: #FFF !important;
 }
 
-/* Project Metric Cards */
+/* Metric cards */
 .project-metric {
-    text-align: center;
-    margin: 0.5rem;
-    padding: 1rem;
-    background-color: #2C2C2C;
+    background-color: #1E1E1E;
+    border: 1px solid #333;
     border-radius: 0.5rem;
-    border: 1px solid #404040;
+    padding: 1rem;
+    text-align: center;
+    margin: 0.5rem 0;
 }
 .project-metric h4 {
     margin: 0;
     font-size: 1rem;
-    color: #B0B0B0;
+    color: #AAA;
 }
 .project-metric p {
-    margin: 0;
+    margin: 0.25rem 0 0;
     font-size: 3rem;
     font-weight: bold;
-    color: #FFFFFF;
+    color: #FFF;
 }
 
 /* Tables */
 .stDataFrame table, .stTable table {
-    background-color: #2C2C2C !important;
-    color: #FFFFFF !important;
+    background-color: #1E1E1E !important;
+    color: #E0E0E0 !important;
 }
 .stDataFrame th, .stTable th {
-    background-color: #333333 !important;
-    color: #FFFFFF !important;
+    background-color: #2B2B2B !important;
+    color: #FFF !important;
 }
 .stDataFrame td, .stTable td {
-    background-color: #2C2C2C !important;
-    color: #FFFFFF !important;
+    background-color: #1E1E1E !important;
+    color: #DDD !important;
 }
 
-/* Plotly dark background */
-[data-testid="stPlotlyChart"] svg {
-    background-color: #1E1E1E !important;
+/* Inputs */
+.stNumberInput input, .stDateInput input, .stTextInput input {
+    background-color: #2B2B2B !important;
+    color: #FFF !important;
+    border: 1px solid #444 !important;
+}
+
+/* Plotly charts */
+[data-testid="stPlotlyChart"] .js-plotly-plot .plotly .main-svg {
+    background-color: #121212 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -83,11 +91,11 @@ body, .stApp, .main .block-container {
 # HEADER
 st.markdown('<div class="main-header"><h1>Project Dashboard</h1></div>', unsafe_allow_html=True)
 
-# SIDEBAR INPUTS
-st.sidebar.header("📁 데이터 및 설정")
+# SIDEBAR: Inputs
+st.sidebar.header("📁 데이터 및 파라미터")
 uploaded = st.sidebar.file_uploader("export.csv 업로드", type="csv")
 if not uploaded:
-    st.info("export.csv 파일을 업로드하세요.")
+    st.sidebar.info("export.csv 파일을 업로드하세요.")
     st.stop()
 raw = pd.read_csv(uploaded, dtype=str)
 
@@ -113,48 +121,51 @@ df = raw.rename(columns={
 ]]
 df["work_date"]   = pd.to_datetime(df["work_date"], errors="coerce")
 df["review_date"]= pd.to_datetime(df["review_date"], errors="coerce")
-for c in ["annotations_completed","valid_count","rework_required","work_time_minutes"]:
-    df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
-df = df[(df["work_date"].dt.date>=open_date)&(df["work_date"].dt.date<=target_end_date)]
-active_days = (target_end_date-open_date).days+1
+for col in ["annotations_completed","valid_count","rework_required","work_time_minutes"]:
+    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+df = df[(df["work_date"].dt.date >= open_date) & (df["work_date"].dt.date <= target_end_date)]
+active_days = (target_end_date - open_date).days + 1
 
-# PROJECT OVERVIEW
+# PROJECT OVERVIEW CALCULATIONS
 completed_qty   = df["data_id"].nunique()
-remaining_qty   = total_data_qty-completed_qty
-progress_pct    = completed_qty/total_data_qty if total_data_qty>0 else 0
-remaining_days  = (target_end_date-date.today()).days
-elapsed_days    = (date.today()-open_date).days+1
-daily_avg       = completed_qty/elapsed_days if elapsed_days>0 else 0
-predicted_total = daily_avg*active_days
-predicted_pct   = predicted_total/total_data_qty if total_data_qty>0 else 0
+remaining_qty   = total_data_qty - completed_qty
+progress_pct    = completed_qty / total_data_qty if total_data_qty > 0 else 0
+remaining_days  = (target_end_date - date.today()).days
+elapsed_days    = (date.today() - open_date).days + 1
+daily_avg       = completed_qty / elapsed_days if elapsed_days > 0 else 0
+predicted_total = daily_avg * active_days
+predicted_pct   = predicted_total / total_data_qty if total_data_qty > 0 else 0
 
+# DISPLAY: PROJECT OVERVIEW
 st.markdown("## 📊 전체 프로젝트 현황")
-col1,col2,col3,col4 = st.columns(4)
-for col,label,value,fmt in [
-    (col1,"총 수량",total_data_qty,"{:,}"),
-    (col2,"완료 수량",completed_qty,"{:,}"),
-    (col3,"잔여 수량",remaining_qty,"{:,}"),
-    (col4,"진행률",progress_pct,"{:.1%}")
+col1, col2, col3, col4 = st.columns(4)
+for col, label, val, fmt in [
+    (col1, "총 수량", total_data_qty, "{:,}"),
+    (col2, "완료 수량", completed_qty, "{:,}"),
+    (col3, "잔여 수량", remaining_qty, "{:,}"),
+    (col4, "진행률", progress_pct, "{:.1%}")
 ]:
     col.markdown(f'''
         <div class="project-metric">
             <h4>{label}</h4>
-            <p>{fmt.format(value)}</p>
+            <p>{fmt.format(val)}</p>
         </div>
     ''', unsafe_allow_html=True)
-col5,col6,col7,col8 = st.columns(4)
-for col,label,value,fmt in [
-    (col5,"잔여일",remaining_days,"{:,}"),
-    (col6,"1일 작업 목표",daily_work_target,"{:,}"),
-    (col7,"1일 검수 목표",daily_review_target,"{:,}"),
-    (col8,"예상 완료율",predicted_pct,"{:.1%}")
+col5, col6, col7, col8 = st.columns(4)
+for col, label, val, fmt in [
+    (col5, "잔여일", remaining_days, "{:,}"),
+    (col6, "1일 작업 목표", daily_work_target, "{:,}"),
+    (col7, "1일 검수 목표", daily_review_target, "{:,}"),
+    (col8, "예상 완료율", predicted_pct, "{:.1%}")
 ]:
     col.markdown(f'''
         <div class="project-metric">
             <h4>{label}</h4>
-            <p>{fmt.format(value)}</p>
+            <p>{fmt.format(val)}</p>
         </div>
     ''', unsafe_allow_html=True)
+
+
 
 
 
