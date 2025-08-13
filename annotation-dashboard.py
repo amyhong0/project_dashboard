@@ -113,6 +113,21 @@ st.dataframe(weekly[["week_label","review_actual","review_target","review_pct","
 ).rename(columns={"week_label":"주차","review_actual":"실제 건수","review_target":"목표 건수",
                   "review_pct":"달성율","review_wait":"검수 대기 건수"}))
 
+
+
+# WEEKLY PROGRESS 아래에 일별 데이터 추가
+st.subheader("📅 주별 진척률 상세 – 일별 데이터")
+for w in weekly["week_label"]:
+    st.markdown(f"### {w}")
+    days = df[df["week_label"]==w].groupby(df["work_date"].dt.date).agg(
+        작업실제=("annotations_completed","sum"),
+        검수실제=("valid_count","sum")
+    ).rename_axis("date").reset_index()
+    days["date"] = days["date"].astype(str)
+    st.dataframe(days)
+
+
+
 # WORKER METRICS
 wd = df.groupby(["worker_id","worker_name"]).agg(
     completed=("annotations_completed","sum"),
@@ -166,6 +181,22 @@ worker_display = worker_display.rename(columns={
 
 st.dataframe(worker_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
 
+
+
+# WORKER METRICS 이후, 주별 작업자 현황 탭
+st.subheader("👤 주별 작업자 현황")
+for w in weekly["week_label"]:
+    st.markdown(f"### {w}")
+    wdf = df[df["week_label"]==w]
+    wwd = wdf.groupby(["worker_id","worker_name"]).agg(
+        작업수량=("annotations_completed","sum"),
+        참여시간분=("work_time_minutes","sum")
+    ).reset_index()
+    wwd["참여시간분"] = wwd["참여시간분"].map("{:,}".format)
+    st.dataframe(wwd)
+
+
+
 # CHECKER METRICS
 cd = df.groupby(["checker_id","checker_name"]).agg(
     reviews=("data_id","count"),
@@ -217,3 +248,19 @@ checker_display = checker_display.rename(columns={
 })
 
 st.dataframe(checker_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
+
+
+
+# CHECKER METRICS 이후, 주별 검수자 현황 탭
+st.subheader("👮 주별 검수자 현황")
+for w in weekly["week_label"]:
+    st.markdown(f"### {w}")
+    rdf = df[df["week_label"]==w]
+    rcd = rdf.groupby(["checker_id","checker_name"]).agg(
+        검수수량=("valid_count","sum"),
+        참여시간분=("work_time_minutes","sum")
+    ).reset_index()
+    rcd["참여시간분"] = rcd["참여시간분"].map("{:,}".format)
+    st.dataframe(rcd)
+
+
