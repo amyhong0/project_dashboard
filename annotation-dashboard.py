@@ -7,6 +7,25 @@ from datetime import date
 
 st.set_page_config(page_title="Project Dashboard", layout="wide")
 
+# CSS for table styling
+st.markdown("""
+<style>
+.header-row {
+    background-color: #4a4a4a !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+.summary-row {
+    background-color: #e0e0e0 !important;
+    font-weight: bold !important;
+}
+.total-row {
+    background-color: #d0d0d0 !important;
+    font-weight: bold !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # HEADER
 st.markdown('<h1 style="text-align:center; color:#333;">Project Dashboard</h1>', unsafe_allow_html=True)
 
@@ -45,6 +64,18 @@ for c in ["annotations_completed","valid_count","rework_required","work_time_min
 df = df[(df["work_date"].dt.date>=open_date)&(df["work_date"].dt.date<=target_end_date)]
 active_days = (target_end_date-open_date).days+1
 
+# Add week labels
+df["month"] = df["work_date"].dt.month
+df["wom"] = ((df["work_date"].dt.day-1)//7)+1
+df["week_label"] = df["month"].astype(str)+"월 "+df["wom"].astype(str)+"주차"
+
+# Create date range for proper week calculation
+dates_df = pd.DataFrame({'work_date': pd.date_range(open_date, target_end_date)})
+dates_df["month"] = dates_df["work_date"].dt.month
+dates_df["wom"] = ((dates_df["work_date"].dt.day-1)//7)+1
+dates_df["week_label"] = dates_df["month"].astype(str)+"월 "+dates_df["wom"].astype(str)+"주차"
+week_days_count = dates_df["week_label"].value_counts().to_dict()
+
 # PROJECT OVERVIEW
 completed_qty   = df["data_id"].nunique()
 remaining_qty   = total_data_qty-completed_qty
@@ -77,23 +108,20 @@ fig.add_scatter(x=target_line["date"], y=target_line["cumulative"], mode="lines"
 st.plotly_chart(fig, use_container_width=True)
 
 # WEEKLY PROGRESS
-df["month"] = df["work_date"].dt.month
-df["wom"] = ((df["work_date"].dt.day-1)//7)+1
-df["week_label"] = df["month"].astype(str)+"월 "+df["wom"].astype(str)+"주차"
-
-# 주별 집계
 weekly = df.groupby("week_label").agg(
     work_actual=("annotations_completed","sum"),
     review_actual=("valid_count","sum")
 ).reset_index()
-weekly["work_target"] = daily_work_target*7
-weekly["review_target"] = daily_review_target*7
+
+# Calculate dynamic weekly targets based on actual days in each week
+weekly["work_target"] = weekly["week_label"].map(lambda x: week_days_count.get(x, 7) * daily_work_target)
+weekly["review_target"] = weekly["week_label"].map(lambda x: week_days_count.get(x, 7) * daily_review_target)
 weekly["work_pct"] = weekly["work_actual"]/weekly["work_target"]
 weekly["review_pct"] = weekly["review_actual"]/weekly["review_target"]
 weekly["review_wait"] = df[(df["annotations_completed"]>0)&df["review_date"].isna()]\
     .groupby("week_label")["data_id"].count().reindex(weekly["week_label"],fill_value=0).values
 
-# 일별 집계
+# Daily data
 daily = df.groupby([df["work_date"].dt.date, "week_label"]).agg(
     work_actual=("annotations_completed","sum"),
     review_actual=("valid_count","sum")
@@ -107,44 +135,50 @@ fig1 = px.bar(weekly, x="week_label", y=["work_actual","work_target"], barmode="
 fig1.update_xaxes(tickangle=-45)
 st.plotly_chart(fig1, use_container_width=True)
 
-# 작업 상세 테이블 (주별 + 일별)
+# Work progress table with styling
 work_display = []
 for _, week_row in weekly.iterrows():
     week_data = {
         "구분": week_row["week_label"],
         "실제 건수": f"{week_row['work_actual']:,}",
         "목표 건수": f"{week_row['work_target']:,}",
-        "달성율": f"{week_row['work_pct']:.1%}"
+        "달성율": f"{week_row['work_pct']:.1%}",
+        "스타일": "summary-row"
     }
     work_display.append(week_data)
     
-    # 해당 주의 일별 데이터
+    # Daily data for this week
     week_daily = daily[daily["week_label"] == week_row["week_label"]]
     for _, day_row in week_daily.iterrows():
         day_data = {
             "구분": f"  └ {day_row['work_date']}",
             "실제 건수": f"{day_row['work_actual']:,}",
             "목표 건수": f"{daily_work_target:,}",
-            "달성율": f"{day_row['work_actual']/daily_work_target:.1%}" if daily_work_target > 0 else "0.0%"
+            "달성율": f"{day_row['work_actual']/daily_work_target:.1%}" if daily_work_target > 0 else "0.0%",
+            "스타일": ""
         }
         work_display.append(day_data)
 
-# 총합 추가
+# Total row
 total_work = {
     "구분": "총합",
     "실제 건수": f"{weekly['work_actual'].sum():,}",
     "목표 건수": f"{weekly['work_target'].sum():,}",
-    "달성율": f"{weekly['work_actual'].sum()/weekly['work_target'].sum():.1%}" if weekly['work_target'].sum() > 0 else "0.0%"
+    "달성율": f"{weekly['work_actual'].sum()/weekly['work_target'].sum():.1%}" if weekly['work_target'].sum() > 0 else "0.0%",
+    "스타일": "total-row"
 }
 work_display.append(total_work)
-st.table(pd.DataFrame(work_display))
+
+work_df = pd.DataFrame(work_display)
+st.markdown("**작업 진척률 상세**")
+st.dataframe(work_df[["구분","실제 건수","목표 건수","달성율"]], use_container_width=True)
 
 st.subheader("📊 주별 진척률 - 검수")
 fig2 = px.bar(weekly, x="week_label", y=["review_actual","review_target"], barmode="group", template="plotly_white")
 fig2.update_xaxes(tickangle=-45)
 st.plotly_chart(fig2, use_container_width=True)
 
-# 검수 상세 테이블 (주별 + 일별)
+# Review progress table with styling
 review_display = []
 for _, week_row in weekly.iterrows():
     week_data = {
@@ -152,11 +186,12 @@ for _, week_row in weekly.iterrows():
         "실제 건수": f"{week_row['review_actual']:,}",
         "목표 건수": f"{week_row['review_target']:,}",
         "달성율": f"{week_row['review_pct']:.1%}",
-        "검수 대기 건수": f"{week_row['review_wait']:,}"
+        "검수 대기 건수": f"{week_row['review_wait']:,}",
+        "스타일": "summary-row"
     }
     review_display.append(week_data)
     
-    # 해당 주의 일별 데이터
+    # Daily data for this week
     week_daily = daily[daily["week_label"] == week_row["week_label"]]
     for _, day_row in week_daily.iterrows():
         day_data = {
@@ -164,20 +199,25 @@ for _, week_row in weekly.iterrows():
             "실제 건수": f"{day_row['review_actual']:,}",
             "목표 건수": f"{daily_review_target:,}",
             "달성율": f"{day_row['review_actual']/daily_review_target:.1%}" if daily_review_target > 0 else "0.0%",
-            "검수 대기 건수": f"{day_row['review_wait']:,}"
+            "검수 대기 건수": f"{day_row['review_wait']:,}",
+            "스타일": ""
         }
         review_display.append(day_data)
 
-# 총합 추가
+# Total row
 total_review = {
     "구분": "총합",
     "실제 건수": f"{weekly['review_actual'].sum():,}",
     "목표 건수": f"{weekly['review_target'].sum():,}",
     "달성율": f"{weekly['review_actual'].sum()/weekly['review_target'].sum():.1%}" if weekly['review_target'].sum() > 0 else "0.0%",
-    "검수 대기 건수": f"{weekly['review_wait'].sum():,}"
+    "검수 대기 건수": f"{weekly['review_wait'].sum():,}",
+    "스타일": "total-row"
 }
 review_display.append(total_review)
-st.table(pd.DataFrame(review_display))
+
+review_df = pd.DataFrame(review_display)
+st.markdown("**검수 진척률 상세**")
+st.dataframe(review_df[["구분","실제 건수","목표 건수","달성율","검수 대기 건수"]], use_container_width=True)
 
 # WORKER METRICS
 wd = df.groupby(["worker_id","worker_name"]).agg(
@@ -205,16 +245,16 @@ summary_w = pd.DataFrame({
     "반려율(%)":[wd["reject_rate"].mean(),wd[wd["abnormal_flag"]=="N"]["reject_rate"].mean()],
     "작업수량":[wd["completed"].mean(),wd[wd["abnormal_flag"]=="N"]["completed"].mean()]
 })
-summary_w[["활성률(%)","반려율(%)"]] = summary_w[["활성률(%)","반려율(%)"]].applymap(lambda x:f"{x:.1%}")
+summary_w[["활성률(%)","반려율(%)"]] = summary_w[["활성률(%)","반료율(%)"]].applymap(lambda x:f"{x:.1%}")
 summary_w["시급(원)"] = summary_w["시급(원)"].map(lambda x: f"{x:,.0f}")
 summary_w["작업수량"] = summary_w["작업수량"].map(lambda x: f"{x:,.0f}")
 
-# 총합 행 추가
+# Total row
 summary_total = pd.DataFrame({
     "구분":["총합"],
     "활성률(%)": [f"{wd['activity_rate'].mean():.1%}"],
     "시급(원)": [f"{wd['hourly_rate'].sum():,}"],
-    "반려율(%)": [f"{wd['reject_rate'].sum():.1%}"],
+    "반료율(%)": [f"{wd['reject_rate'].sum():.1%}"],
     "작업수량": [f"{wd['completed'].sum():,}"]
 })
 summary_w = pd.concat([summary_w, summary_total], ignore_index=True)
@@ -223,7 +263,7 @@ st.table(summary_w)
 fig_wd = px.bar(wd.sort_values("completed",ascending=False), x="worker_name", y="completed", title="작업량 by 작업자", template="plotly_white")
 st.plotly_chart(fig_wd, use_container_width=True)
 
-# Worker dataframe with styling and total
+# Worker dataframe
 worker_display = wd.sort_values("completed",ascending=False)[[
     "worker_id","worker_name","activity_pct","hourly_rate","reject_pct","completed",
     "avg_min_per_task","daily_min","last_date","abnormal_flag"
@@ -234,7 +274,7 @@ worker_display["completed"] = worker_display["completed"].map(lambda x: f"{x:,}"
 worker_display["avg_min_per_task"] = worker_display["avg_min_per_task"].map(lambda x: f"{x:,}")
 worker_display["daily_min"] = worker_display["daily_min"].map(lambda x: f"{x:,}")
 
-# 총합 행 추가
+# Total row
 worker_total = pd.DataFrame({
     "worker_id": ["총합"],
     "worker_name": [""],
@@ -256,9 +296,73 @@ worker_display = worker_display.rename(columns={
 
 st.dataframe(worker_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
 
-# CHECKER METRICS (수정된 로직)
+# WEEKLY WORKER STATUS
+st.subheader("👤 주별 작업자 현황")
+for week in weekly["week_label"]:
+    st.markdown(f"### {week}")
+    week_df = df[df["week_label"]==week]
+    if not week_df.empty:
+        wwd = week_df.groupby(["worker_id","worker_name"]).agg(
+            completed=("annotations_completed","sum"),
+            rework=("rework_required","sum"),
+            work_time=("work_time_minutes","sum"),
+            last_date=("work_date","max")
+        ).reset_index()
+        
+        # Calculate metrics similar to main worker table
+        wwd["hours"] = wwd["work_time"]/60
+        wwd["per_hr"] = wwd["completed"]/wwd["hours"].replace(0,np.nan)
+        wwd["hourly_rate"] = (wwd["per_hr"].fillna(0) * unit_price).astype(int)
+        wwd["avg_min_per_task"] = ((wwd["hours"]/wwd["completed"].replace(0,np.nan))*60).astype(int)
+        wwd["daily_min"] = ((wwd["hours"]/7)*60).astype(int)  # Assuming 7 days per week
+        wwd["reject_rate"] = (wwd["rework"]/wwd["completed"].replace(0,np.nan)).clip(lower=0)
+        wwd["activity_rate"] = wwd["hours"]/(7*8)  # 7 days * 8 hours
+        wwd["reject_pct"] = wwd["reject_rate"].map("{:.1%}".format)
+        wwd["activity_pct"] = wwd["activity_rate"].map("{:.1%}".format)
+        wwd["abnormal_flag"] = np.where((wwd["reject_rate"]>=0.3)|(wwd["activity_rate"]<=0.5),"Y","N")
+        
+        # Format display columns
+        wwd_display = wwd[[
+            "worker_id","worker_name","activity_pct","hourly_rate","reject_pct","completed",
+            "avg_min_per_task","daily_min","last_date","abnormal_flag"
+        ]].copy()
+        
+        wwd_display["hourly_rate"] = wwd_display["hourly_rate"].map(lambda x: f"{x:,}")
+        wwd_display["completed"] = wwd_display["completed"].map(lambda x: f"{x:,}")
+        wwd_display["avg_min_per_task"] = wwd_display["avg_min_per_task"].map(lambda x: f"{x:,}")
+        wwd_display["daily_min"] = wwd_display["daily_min"].map(lambda x: f"{x:,}")
+        
+        # Add total row
+        total_row = pd.DataFrame({
+            "worker_id": ["소계"],
+            "worker_name": [""],
+            "activity_pct": [f"{wwd['activity_rate'].mean():.1%}"],
+            "hourly_rate": [f"{wwd['hourly_rate'].sum():,}"],
+            "reject_pct": [f"{wwd['reject_rate'].mean():.1%}"],
+            "completed": [f"{wwd['completed'].sum():,}"],
+            "avg_min_per_task": [f"{wwd['avg_min_per_task'].mean():,}"],
+            "daily_min": [f"{wwd['daily_min'].sum():,}"],
+            "last_date": [""],
+            "abnormal_flag": [""]
+        })
+        
+        wwd_display = pd.concat([wwd_display, total_row], ignore_index=True)
+        wwd_display = wwd_display.rename(columns={
+            "worker_id":"ID","worker_name":"닉네임","activity_pct":"활성률(%)","hourly_rate":"시급(원)",
+            "reject_pct":"반료율(%)","completed":"작업수량","avg_min_per_task":"건당평균(분)",
+            "daily_min":"일평균(분)","last_date":"마지막작업일","abnormal_flag":"이상참여자"
+        })
+        
+        # Chart for this week
+        if len(wwd) > 1:
+            fig_week = px.bar(wwd.head(-1), x="worker_name", y="completed", title=f"{week} 작업량", template="plotly_white")
+            st.plotly_chart(fig_week, use_container_width=True)
+        
+        st.dataframe(wwd_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
+
+# CHECKER METRICS
 cd = df.groupby(["checker_id","checker_name"]).agg(
-    reviews=("valid_count","sum"),  # 수정: 실제 검수한 오브젝트 수
+    reviews=("valid_count","sum"),
     valid=("valid_count","sum"),
     last_date=("review_date","max")
 ).reset_index()
@@ -285,7 +389,7 @@ summary_c[["활성률(%)","오류율(%)"]] = summary_c[["활성률(%)","오류�
 summary_c["시급(원)"] = summary_c["시급(원)"].map(lambda x: f"{x:,.0f}")
 summary_c["검수수량"] = summary_c["검수수량"].map(lambda x: f"{x:,.0f}")
 
-# 총합 행 추가
+# Total row
 summary_c_total = pd.DataFrame({
     "구분":["총합"],
     "활성률(%)": [f"{cd['activity_rate'].mean():.1%}"],
@@ -299,7 +403,7 @@ st.table(summary_c)
 fig_cd = px.bar(cd.sort_values("reviews",ascending=False), x="checker_name", y="reviews", title="검수량 by 검수자", template="plotly_white")
 st.plotly_chart(fig_cd, use_container_width=True)
 
-# Checker dataframe with styling and total
+# Checker dataframe
 checker_display = cd.sort_values("reviews",ascending=False)[[
     "checker_id","checker_name","activity_pct","hourly_rate","error_pct","reviews",
     "avg_min_per_task","daily_min","last_date","abnormal_flag"
@@ -310,7 +414,7 @@ checker_display["reviews"] = checker_display["reviews"].map(lambda x: f"{x:,}")
 checker_display["avg_min_per_task"] = checker_display["avg_min_per_task"].map(lambda x: f"{x:,}")
 checker_display["daily_min"] = checker_display["daily_min"].map(lambda x: f"{x:,}")
 
-# 총합 행 추가
+# Total row
 checker_total = pd.DataFrame({
     "checker_id": ["총합"],
     "checker_name": [""],
@@ -332,88 +436,67 @@ checker_display = checker_display.rename(columns={
 
 st.dataframe(checker_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
 
-# 주별 작업자 현황
-st.subheader("👤 주별 작업자 현황")
-weekly_worker_display = []
-for week in weekly["week_label"].unique():
-    week_df = df[df["week_label"]==week]
-    wwd = week_df.groupby(["worker_id","worker_name"]).agg(
-        작업수량=("annotations_completed","sum"),
-        참여시간분=("work_time_minutes","sum")
-    ).reset_index()
-    
-    # 주차별 데이터
-    for _, row in wwd.iterrows():
-        weekly_worker_display.append({
-            "주차": week,
-            "ID": row["worker_id"],
-            "닉네임": row["worker_name"],
-            "작업수량": f"{row['작업수량']:,}",
-            "참여시간(분)": f"{row['참여시간분']:,}"
-        })
-    
-    # 주차별 소계
-    weekly_worker_display.append({
-        "주차": f"{week} 소계",
-        "ID": "",
-        "닉네임": "",
-        "작업수량": f"{wwd['작업수량'].sum():,}",
-        "참여시간(분)": f"{wwd['참여시간분'].sum():,}"
-    })
-
-# 전체 총합
-total_worker = df.groupby(["worker_id","worker_name"]).agg(
-    작업수량=("annotations_completed","sum"),
-    참여시간분=("work_time_minutes","sum")
-).reset_index()
-weekly_worker_display.append({
-    "주차": "전체 총합",
-    "ID": "",
-    "닉네임": "",
-    "작업수량": f"{total_worker['작업수량'].sum():,}",
-    "참여시간(분)": f"{total_worker['참여시간분'].sum():,}"
-})
-st.table(pd.DataFrame(weekly_worker_display))
-
-# 주별 검수자 현황
+# WEEKLY CHECKER STATUS
 st.subheader("👮 주별 검수자 현황")
-weekly_checker_display = []
-for week in weekly["week_label"].unique():
+for week in weekly["week_label"]:
+    st.markdown(f"### {week}")
     week_df = df[df["week_label"]==week]
-    wcd = week_df.groupby(["checker_id","checker_name"]).agg(
-        검수수량=("valid_count","sum"),
-        참여시간분=("work_time_minutes","sum")
-    ).reset_index()
-    
-    # 주차별 데이터
-    for _, row in wcd.iterrows():
-        weekly_checker_display.append({
-            "주차": week,
-            "ID": row["checker_id"],
-            "닉네임": row["checker_name"],
-            "검수수량": f"{row['검수수량']:,}",
-            "참여시간(분)": f"{row['참여시간분']:,}"
+    if not week_df.empty:
+        wcd = week_df.groupby(["checker_id","checker_name"]).agg(
+            reviews=("valid_count","sum"),
+            valid=("valid_count","sum"),
+            last_date=("review_date","max")
+        ).reset_index()
+        
+        # Calculate metrics similar to main checker table
+        wcd["hours"] = wcd["reviews"]
+        wcd["per_hr"] = wcd["reviews"]/wcd["hours"].replace(0,np.nan)
+        wcd["hourly_rate"] = (wcd["per_hr"].fillna(0) * review_price).astype(int)
+        wcd["avg_min_per_task"] = ((wcd["hours"]/wcd["reviews"].replace(0,np.nan))*60).astype(int)
+        wcd["daily_min"] = ((wcd["hours"]/7)*60).astype(int)
+        wcd["error_rate"] = ((wcd["reviews"]-wcd["valid"])/wcd["reviews"].replace(0,np.nan)).clip(lower=0)
+        wcd["error_pct"] = wcd["error_rate"].map("{:.1%}".format)
+        wcd["activity_rate"] = wcd["hours"]/(7*8)
+        wcd["activity_pct"] = wcd["activity_rate"].map("{:.1%}".format)
+        wcd["abnormal_flag"] = np.where((wcd["error_rate"]>=0.3)|(wcd["activity_rate"]<=0.5),"Y","N")
+        
+        # Format display columns
+        wcd_display = wcd[[
+            "checker_id","checker_name","activity_pct","hourly_rate","error_pct","reviews",
+            "avg_min_per_task","daily_min","last_date","abnormal_flag"
+        ]].copy()
+        
+        wcd_display["hourly_rate"] = wcd_display["hourly_rate"].map(lambda x: f"{x:,}")
+        wcd_display["reviews"] = wcd_display["reviews"].map(lambda x: f"{x:,}")
+        wcd_display["avg_min_per_task"] = wcd_display["avg_min_per_task"].map(lambda x: f"{x:,}")
+        wcd_display["daily_min"] = wcd_display["daily_min"].map(lambda x: f"{x:,}")
+        
+        # Add total row
+        total_row = pd.DataFrame({
+            "checker_id": ["소계"],
+            "checker_name": [""],
+            "activity_pct": [f"{wcd['activity_rate'].mean():.1%}"],
+            "hourly_rate": [f"{wcd['hourly_rate'].sum():,}"],
+            "error_pct": [f"{wcd['error_rate'].mean():.1%}"],
+            "reviews": [f"{wcd['reviews'].sum():,}"],
+            "avg_min_per_task": [f"{wcd['avg_min_per_task'].mean():,}"],
+            "daily_min": [f"{wcd['daily_min'].sum():,}"],
+            "last_date": [""],
+            "abnormal_flag": [""]
         })
-    
-    # 주차별 소계
-    weekly_checker_display.append({
-        "주차": f"{week} 소계",
-        "ID": "",
-        "닉네임": "",
-        "검수수량": f"{wcd['검수수량'].sum():,}",
-        "참여시간(분)": f"{wcd['참여시간분'].sum():,}"
-    })
+        
+        wcd_display = pd.concat([wcd_display, total_row], ignore_index=True)
+        wcd_display = wcd_display.rename(columns={
+            "checker_id":"ID","checker_name":"닉네임","activity_pct":"활성률(%)","hourly_rate":"시급(원)",
+            "error_pct":"오류율(%)","reviews":"검수수량","avg_min_per_task":"건당평균(분)",
+            "daily_min":"일평균(분)","last_date":"마지막검수일","abnormal_flag":"이상참여자"
+        })
+        
+        # Chart for this week
+        if len(wcd) > 1:
+            fig_week = px.bar(wcd.head(-1), x="checker_name", y="reviews", title=f"{week} 검수량", template="plotly_white")
+            st.plotly_chart(fig_week, use_container_width=True)
+        
+        st.dataframe(wcd_display.style.applymap(lambda v:'color:red;' if v=='Y' else '', subset=["이상참여자"]), use_container_width=True)
 
-# 전체 총합
-total_checker = df.groupby(["checker_id","checker_name"]).agg(
-    검수수량=("valid_count","sum"),
-    참여시간분=("work_time_minutes","sum")
-).reset_index()
-weekly_checker_display.append({
-    "주차": "전체 총합",
-    "ID": "",
-    "닉네임": "",
-    "검수수량": f"{total_checker['검수수량'].sum():,}",
-    "참여시간(분)": f"{total_checker['참여시간분'].sum():,}"
-})
-st.table(pd.DataFrame(weekly_checker_display))
+
