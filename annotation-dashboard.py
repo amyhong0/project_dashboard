@@ -168,7 +168,7 @@ for week in weekly["주차"][:-1]:
         "worker_id":"ID","worker_name":"닉네임","completed":"작업수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
     
 # CHECKER OVERVIEW
 cd = df.groupby(["checker_id","checker_name"]).agg(
@@ -223,5 +223,5 @@ for week in weekly["주차"][:-1]:
         "checker_id":"ID","checker_name":"닉네임","review_count":"검수수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
 
