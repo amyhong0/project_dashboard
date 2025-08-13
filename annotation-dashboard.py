@@ -42,10 +42,15 @@ raw["review_week"] = raw["검수 종료일"].dt.isocalendar().week
 # --- 1) 주별 전체 프로젝트 진행: 목표 vs 실제 ---
 st.subheader("1) 주별 전체 진행 현황")
 # actual per week
-actual = raw.groupby("work_week")["유효 오브젝트 수"].sum().reset_index()
+actual = (
+    raw.groupby("work_week")["유효 오브젝트 수"]
+       .sum()
+       .reset_index()
+       .rename(columns={"work_week": "week", "유효 오브젝트 수": "actual"})
+)
 # build full weeks frame
 weekly_df = pd.DataFrame({"week": weeks})
-weekly_df = weekly_df.merge(actual.rename(columns={"유효 오브젝트 수": "actual"}), how="left", on="week")
+weekly_df = weekly_df.merge(actual, how="left", on="week")
 weekly_df["actual"] = weekly_df["actual"].fillna(0)
 weekly_df["goal"] = weekly_goal
 
