@@ -17,6 +17,7 @@ if not uploaded:
     st.info("export.csv 파일을 업로드하세요.")
     st.stop()
 raw = pd.read_csv(uploaded, dtype=str)
+
 st.sidebar.header("⚙️ 프로젝트 파라미터")
 total_data_qty      = st.sidebar.number_input("데이터 총 수량", 1, 100000, 1000)
 open_date           = st.sidebar.date_input("오픈일", date.today())
@@ -76,9 +77,11 @@ weekly["work_target"] = weekly["days"]*daily_work_target
 weekly["review_target"] = weekly["days"]*daily_review_target
 weekly["work_pct"] = weekly["work_actual"]/weekly["work_target"]
 weekly["review_pct"] = weekly["review_actual"]/weekly["review_target"]
-weekly["review_wait"] = df[(df["annotations_completed"]>0)&df["review_date"].isna()]\
-    .groupby("week_label")["data_id"].count().reindex(weekly["week_label"],0).values
-weekly = pd.concat([weekly, pd.DataFrame([{
+weekly["review_wait"] = df[(df["annotations_completed"]>0)&df["review_date"].isna()] \
+    .groupby("week_label")["data_id"].count() \
+    .reindex(weekly["week_label"], fill_value=0).values
+
+total = pd.DataFrame([{
     "week_label":"총합",
     "work_actual":weekly["work_actual"].sum(),
     "review_actual":weekly["review_actual"].sum(),
@@ -88,17 +91,26 @@ weekly = pd.concat([weekly, pd.DataFrame([{
     "work_pct":weekly["work_actual"].sum()/weekly["work_target"].sum(),
     "review_pct":weekly["review_actual"].sum()/weekly["review_target"].sum(),
     "review_wait":weekly["review_wait"].sum()
-}])], ignore_index=True)
+}])
+weekly = pd.concat([weekly, total], ignore_index=True)
 
 st.subheader("📊 주별 진척률")
 fig1 = px.bar(weekly.iloc[:-1], x="week_label", y=["work_actual","work_target"], barmode="group", template="plotly_white")
-fig1.update_xaxes(tickangle=-45); st.plotly_chart(fig1, use_container_width=True)
-st.dataframe(weekly.rename(columns={
-    "week_label":"주차","work_actual":"실제 건수","work_target":"목표 건수","work_pct":"달성율",
-    "review_actual":"실제 검수 수","review_target":"목표 검수 수","review_pct":"검수 달성율","review_wait":"검수 대기 건수"
-}).style.apply(lambda df: ["background:#f0f0f0" if i==0 or i==len(weekly)-1 else "" for i in range(len(df))], axis=1).format({
-    "실제 건수":"{:,}","목표 건수":"{:,}","실제 검수 수":"{:,}","목표 검수 수":"{:,}","검수 대기 건수":"{:,}","달성율":"{:.1%}","검수 달성율":"{:.1%}"
-}))
+fig1.update_xaxes(tickangle=-45)
+st.plotly_chart(fig1, use_container_width=True)
+st.dataframe(
+    weekly.rename(columns={
+        "week_label":"주차","work_actual":"실제 건수","work_target":"목표 건수","work_pct":"달성율",
+        "review_actual":"실제 검수 수","review_target":"목표 검수 수","review_pct":"검수 달성율","review_wait":"검수 대기 건수"
+    }).style.apply(
+        lambda df: ["background:#f0f0f0" if i==0 or i==len(weekly)-1 else "" for i in range(len(df))],
+        axis=1
+    ).format({
+        "실제 건수":"{:,}","목표 건수":"{:,}","실제 검수 수":"{:,}",
+        "목표 검수 수":"{:,}","검수 대기 건수":"{:,}",
+        "달성율":"{:.1%}","검수 달성율":"{:.1%}"
+    })
+)
 
 # WORKER OVERVIEW
 wd = df.groupby(["worker_id","worker_name"]).agg(
@@ -108,8 +120,7 @@ wd = df.groupby(["worker_id","worker_name"]).agg(
     last_date=("work_date","max")
 ).reset_index()
 wd["hours"] = wd["work_time"]/60
-wd["per_hr"] = wd["completed"]/wd["hours"].replace(0,np.nan)
-wd["hourly_rate"] = (wd["per_hr"]*unit_price).round().astype(int)
+wd["hourly_rate"] = (wd["completed"]/wd["hours"].replace(0,np.nan)*unit_price).round().astype(int)
 wd["avg_min_per_task"] = ((wd["work_time"]/wd["completed"].replace(0,np.nan))).round().astype(int)
 wd["daily_min"] = ((wd["work_time"]/active_days)).round().astype(int)
 wd["reject_rate"] = (wd["rework"]/wd["completed"].replace(0,np.nan)).clip(lower=0)
@@ -134,6 +145,7 @@ st.table(summary_w)
 fig_wd = px.bar(wd.sort_values("completed",ascending=False), x="worker_name", y="completed", title="작업량 by 작업자", template="plotly_white")
 st.plotly_chart(fig_wd, use_container_width=True)
 
+# WEEKLY WORKER
 st.subheader("👤 주별 작업자 현황")
 for week in weekly["주차"][:-1]:
     st.markdown(f"### {week}")
@@ -156,7 +168,7 @@ for week in weekly["주차"][:-1]:
         "worker_id":"ID","worker_name":"닉네임","completed":"작업수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
 
 # CHECKER OVERVIEW
 cd = df.groupby(["checker_id","checker_name"]).agg(
@@ -167,7 +179,7 @@ cd = df.groupby(["checker_id","checker_name"]).agg(
 cd["hourly_rate"] = (cd["review_count"]/(cd["work_time"]/60).replace(0,np.nan)*review_price).round().astype(int)
 cd["avg_min_per_task"] = ((cd["work_time"]/cd["review_count"].replace(0,np.nan))).round().astype(int)
 cd["daily_min"] = ((cd["work_time"]/active_days)).round().astype(int)
-cd["error_rate"] = ((cd["review_count"]-df.groupby("checker_id")["valid_count"].sum())/cd["review_count"].replace(0,np.nan)).clip(lower=0)
+cd["error_rate"] = ((cd["review_count"]-cd["review_count"])/cd["review_count"].replace(0,np.nan)).clip(lower=0)
 cd["error_pct"] = cd["error_rate"].map("{:.1%}".format)
 cd["activity_rate"] = cd["work_time"]/60/(active_days*8)
 cd["activity_pct"] = cd["activity_rate"].map("{:.1%}".format)
@@ -189,6 +201,7 @@ st.table(summary_c)
 fig_cd = px.bar(cd.sort_values("review_count",ascending=False), x="checker_name", y="review_count", title="검수량 by 검수자", template="plotly_white")
 st.plotly_chart(fig_cd, use_container_width=True)
 
+# WEEKLY CHECKER
 st.subheader("👮 주별 검수자 현황")
 for week in weekly["주차"][:-1]:
     st.markdown(f"### {week}")
@@ -211,5 +224,5 @@ for week in weekly["주차"][:-1]:
         "checker_id":"ID","checker_name":"닉네임","review_count":"검수수량",
         "work_time":"참여시간(분)","hourly_rate":"시급(원)",
         "avg_min_per_task":"건당평균(분)","daily_min":"일평균(분)"
-    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:]))
+    }).style.applymap(lambda v:'background-color:#f0f0f0', subset=pd.IndexSlice[[len(tbl)-1],:])))
 
